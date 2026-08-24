@@ -34,13 +34,30 @@ jobs:
         with:
           node-version: "20"
 
+      - name: Enforce 60-second minimum gap
+        id: gap
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          let lastRun = null;
+          try { lastRun = JSON.parse(fs.readFileSync('data/state.json','utf8')).lastRun; } catch {}
+          const age = lastRun ? Date.now() - Date.parse(lastRun) : Infinity;
+          const shouldRun = !Number.isFinite(age) || age >= 60000;
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `should_run=${shouldRun}\n`);
+          console.log(shouldRun ? 'Cycle allowed.' : `Skipped: previous cycle was ${Math.round(age/1000)}s ago.`);
+          NODE
+
       - name: Syntax check
+        if: steps.gap.outputs.should_run == 'true'
         run: npm run check
 
       - name: Run one Nomad17 cycle
+        if: steps.gap.outputs.should_run == 'true'
         run: npm run run
 
       - name: Persist memory and journal
+        if: steps.gap.outputs.should_run == 'true'
         run: |
           if git diff --quiet -- data/ docs/journal.json; then
             echo "No state changes."
