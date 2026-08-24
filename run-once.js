@@ -1,22 +1,17 @@
 const nativeFetch = globalThis.fetch.bind(globalThis);
 
 // Reliability policy for OpenRouter calls.
-// Ox Alpha is useful for agentic reasoning, but it is a preview model and can be slow.
-// Give it a bounded first attempt, then fall back instead of letting the whole GitHub job die at 120s.
+// Ox Alpha is preferred, but preview/provider failures must not take Nomad17 down.
 globalThis.fetch = async function nomadFetch(input, init = {}) {
   const url = typeof input === "string" ? input : input?.url || "";
-  if (!url.includes("/chat/completions") || !init?.body) {
-    return nativeFetch(input, init);
-  }
+  if (!url.includes("/chat/completions") || !init?.body) return nativeFetch(input, init);
 
   let body;
   try { body = JSON.parse(init.body); }
   catch { return nativeFetch(input, init); }
 
   const originalModel = String(body?.model || "");
-  if (originalModel !== "stealth/ox-alpha") {
-    return nativeFetch(input, init);
-  }
+  if (originalModel !== "stealth/ox-alpha") return nativeFetch(input, init);
 
   const callerSignal = init.signal;
   const primaryController = new AbortController();
@@ -44,7 +39,11 @@ globalThis.fetch = async function nomadFetch(input, init = {}) {
       body: JSON.stringify(primaryBody),
     });
     console.log(`[router] primary headers status=${response.status} in ${Date.now() - primaryStarted}ms`);
-    return response;
+
+    // Upstream shared-pool rate limits and provider/server failures are recoverable.
+    if (response.status !== 429 && response.status < 500) return response;
+    try { await response.body?.cancel(); } catch {}
+    console.warn(`[router] Ox Alpha HTTP ${response.status}; switching to fallback`);
   } catch (error) {
     if (callerSignal?.aborted) throw error;
     console.warn(`[router] Ox Alpha unavailable after ${Date.now() - primaryStarted}ms: ${error?.message || error}`);
@@ -53,8 +52,6 @@ globalThis.fetch = async function nomadFetch(input, init = {}) {
     if (callerSignal) callerSignal.removeEventListener("abort", onCallerAbort);
   }
 
-  // Fast rescue path. This request is still governed by agent.js's outer AbortController,
-  // so the complete LLM phase remains bounded.
   const fallbackModel = process.env.OPENAI_FALLBACK_MODEL || "openrouter/auto";
   const fallbackBody = {
     ...body,
@@ -68,6 +65,7 @@ globalThis.fetch = async function nomadFetch(input, init = {}) {
   console.log(`[router] fallback ${fallbackModel}`);
   return nativeFetch(input, {
     ...init,
+    signal: callerSignal,
     body: JSON.stringify(fallbackBody),
   });
 };
@@ -83,7 +81,5 @@ try {
   console.error(err?.stack || err?.message || String(err));
 }
 
-// Do not let keep-alive sockets or provider connections keep the runner alive until GNU timeout kills it.
-// All durable writes inside runCycle have completed before this point.
 console.log(`[run-once] exiting code=${exitCode}`);
 process.exit(exitCode);
