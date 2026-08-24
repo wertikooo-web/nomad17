@@ -1,9 +1,48 @@
 const nativeFetch = globalThis.fetch.bind(globalThis);
 
-// Production routing: regular walks prioritize predictable completion and valid structured output.
-const REGULAR_MODEL = process.env.OPENAI_REGULAR_MODEL || "openai/gpt-oss-20b:free";
-const FALLBACK_MODEL = process.env.OPENAI_FALLBACK_MODEL || REGULAR_MODEL;
+const REGULAR_MODELS = (process.env.OPENAI_REGULAR_MODELS || "google/gemma-4-26b-a4b-it:free,z-ai/glm-5.2:free,nex-agi/nex-n2-pro:free")
+  .split(",").map(x => x.trim()).filter(Boolean);
+const DEEP_FALLBACK_MODEL = process.env.OPENAI_FALLBACK_MODEL || REGULAR_MODELS[0];
 const isDeepRun = process.env.NOMAD17_RESEARCH_DEPTH === "deep" && Boolean(String(process.env.NOMAD17_MISSION || "").trim());
+
+function validEnvelope(raw) {
+  let envelope = null;
+  try { envelope = raw ? JSON.parse(raw) : null; } catch { return false; }
+  const content = envelope?.choices?.[0]?.message?.content;
+  if (typeof content !== "string" || !content.trim()) return false;
+  try { return Boolean(JSON.parse(content) && typeof JSON.parse(content) === "object"); }
+  catch { return false; }
+}
+
+async function attemptModel(input, init, body, model, timeoutMs) {
+  const callerSignal = init.signal;
+  const controller = new AbortController();
+  const relayAbort = () => controller.abort(callerSignal?.reason);
+  if (callerSignal) {
+    if (callerSignal.aborted) controller.abort(callerSignal.reason);
+    else callerSignal.addEventListener("abort", relayAbort, { once: true });
+  }
+  const timer = setTimeout(() => controller.abort(new Error(`${model} budget exceeded`)), timeoutMs);
+  const started = Date.now();
+  try {
+    const requestBody = { ...body, model, temperature: 0.2 };
+    delete requestBody.reasoning;
+    delete requestBody.reasoning_effort;
+    const response = await nativeFetch(input, { ...init, signal: controller.signal, body: JSON.stringify(requestBody) });
+    const raw = await response.text();
+    const good = response.ok && validEnvelope(raw);
+    console.log(`[router] ${model} status=${response.status} bytes=${raw.length} valid_json=${good} elapsed=${Date.now() - started}ms`);
+    if (good) return new Response(raw, { status: response.status, statusText: response.statusText, headers: response.headers });
+    return null;
+  } catch (error) {
+    if (callerSignal?.aborted) throw error;
+    console.warn(`[router] ${model} failed after ${Date.now() - started}ms: ${error?.message || error}`);
+    return null;
+  } finally {
+    clearTimeout(timer);
+    if (callerSignal) callerSignal.removeEventListener("abort", relayAbort);
+  }
+}
 
 globalThis.fetch = async function nomadFetch(input, init = {}) {
   const url = typeof input === "string" ? input : input?.url || "";
@@ -17,65 +56,48 @@ globalThis.fetch = async function nomadFetch(input, init = {}) {
   if (originalModel !== "stealth/ox-alpha") return nativeFetch(input, init);
 
   if (!isDeepRun) {
-    const regularBody = { ...body, model: REGULAR_MODEL, max_tokens: 3200, temperature: 0.2 };
-    delete regularBody.reasoning;
-    delete regularBody.reasoning_effort;
-    console.log(`[router] regular cycle -> ${REGULAR_MODEL}`);
-    return nativeFetch(input, { ...init, body: JSON.stringify(regularBody) });
+    for (const model of REGULAR_MODELS) {
+      console.log(`[router] regular attempt -> ${model}`);
+      const response = await attemptModel(input, init, { ...body, max_tokens: 3200 }, model, 20000);
+      if (response) return response;
+    }
+    throw new Error(`No regular OpenRouter model produced valid JSON: ${REGULAR_MODELS.join(", ")}`);
   }
 
   const callerSignal = init.signal;
   const primaryController = new AbortController();
-  const onCallerAbort = () => primaryController.abort(callerSignal?.reason);
+  const relayAbort = () => primaryController.abort(callerSignal?.reason);
   if (callerSignal) {
     if (callerSignal.aborted) primaryController.abort(callerSignal.reason);
-    else callerSignal.addEventListener("abort", onCallerAbort, { once: true });
+    else callerSignal.addEventListener("abort", relayAbort, { once: true });
   }
-
-  const primaryBody = {
-    ...body,
-    model: "stealth/ox-alpha",
-    reasoning: { effort: "low", exclude: true },
-    max_tokens: 7000,
-    temperature: 0.2,
-  };
   const primaryTimer = setTimeout(() => primaryController.abort(new Error("Ox Alpha deep budget exceeded")), 90000);
   const started = Date.now();
   try {
-    console.log("[router] deep primary stealth/ox-alpha full-valid-json budget=90s");
+    const primaryBody = { ...body, model: "stealth/ox-alpha", reasoning: { effort: "low", exclude: true }, max_tokens: 7000, temperature: 0.2 };
+    console.log("[router] deep primary -> stealth/ox-alpha");
     const response = await nativeFetch(input, { ...init, signal: primaryController.signal, body: JSON.stringify(primaryBody) });
     const raw = await response.text();
-    console.log(`[router] deep primary complete status=${response.status} bytes=${raw.length} in ${Date.now() - started}ms`);
-    let envelope = null;
-    try { envelope = raw ? JSON.parse(raw) : null; } catch {}
-    const content = envelope?.choices?.[0]?.message?.content;
-    let parsed = null;
-    if (typeof content === "string" && content.trim()) try { parsed = JSON.parse(content); } catch {}
-    if (response.ok && parsed && typeof parsed === "object") {
-      return new Response(raw, { status: response.status, statusText: response.statusText, headers: response.headers });
-    }
-    if (!response.ok && response.status < 500 && response.status !== 429) {
-      return new Response(raw, { status: response.status, statusText: response.statusText, headers: response.headers });
-    }
-    console.warn(`[router] deep Ox Alpha unusable; falling back to ${FALLBACK_MODEL}`);
+    const good = response.ok && validEnvelope(raw);
+    console.log(`[router] deep primary status=${response.status} bytes=${raw.length} valid_json=${good} elapsed=${Date.now() - started}ms`);
+    if (good) return new Response(raw, { status: response.status, statusText: response.statusText, headers: response.headers });
   } catch (error) {
     if (callerSignal?.aborted) throw error;
     console.warn(`[router] deep Ox Alpha failed after ${Date.now() - started}ms: ${error?.message || error}`);
   } finally {
     clearTimeout(primaryTimer);
-    if (callerSignal) callerSignal.removeEventListener("abort", onCallerAbort);
+    if (callerSignal) callerSignal.removeEventListener("abort", relayAbort);
   }
 
-  const fallbackBody = { ...body, model: FALLBACK_MODEL, max_tokens: 5000, temperature: 0.2 };
-  delete fallbackBody.reasoning;
-  delete fallbackBody.reasoning_effort;
-  console.log(`[router] deep fallback -> ${FALLBACK_MODEL}`);
-  return nativeFetch(input, { ...init, signal: callerSignal, body: JSON.stringify(fallbackBody) });
+  console.log(`[router] deep fallback -> ${DEEP_FALLBACK_MODEL}`);
+  const fallback = await attemptModel(input, init, { ...body, max_tokens: 5000 }, DEEP_FALLBACK_MODEL, 45000);
+  if (fallback) return fallback;
+  throw new Error(`Deep fallback ${DEEP_FALLBACK_MODEL} did not produce valid JSON`);
 };
 
 let exitCode = 0;
 try {
-  console.log(`[run-once] configured=${process.env.OPENAI_MODEL || "unset"} regular=${REGULAR_MODEL} deep=${isDeepRun}`);
+  console.log(`[run-once] configured=${process.env.OPENAI_MODEL || "unset"} regular_chain=${REGULAR_MODELS.join(" -> ")} deep=${isDeepRun}`);
   const { runCycle } = await import("./src/agent.js");
   const result = await runCycle({ reason: process.env.GITHUB_ACTIONS ? "github-actions" : "manual" });
   console.log(JSON.stringify(result, null, 2));
