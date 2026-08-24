@@ -1,0 +1,11 @@
+{
+  "name": "nomad17",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "run": "node run-once.js",
+    "check": "node --check run-once.js && node --check src/agent.js && node --check src/f916.js && node --check src/memory.js && node --check src/policy.js"
+  },
+  "engines": { "node": ">=20" }
+}
