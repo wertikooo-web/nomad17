@@ -1,7 +1,7 @@
 const nativeFetch = globalThis.fetch.bind(globalThis);
 
 // Reliability policy for OpenRouter calls.
-// Ox Alpha is preferred, but it counts as successful only after a complete usable body arrives.
+// Ox Alpha is preferred, but it counts as successful only after a complete valid JSON body arrives.
 globalThis.fetch = async function nomadFetch(input, init = {}) {
   const url = typeof input === "string" ? input : input?.url || "";
   if (!url.includes("/chat/completions") || !init?.body) return nativeFetch(input, init);
@@ -32,7 +32,7 @@ globalThis.fetch = async function nomadFetch(input, init = {}) {
   const primaryTimer = setTimeout(() => primaryController.abort(new Error("Ox Alpha primary budget exceeded")), 35000);
   const primaryStarted = Date.now();
   try {
-    console.log("[router] primary stealth/ox-alpha full-response budget=35s reasoning=low");
+    console.log("[router] primary stealth/ox-alpha full-valid-json budget=35s reasoning=low");
     const response = await nativeFetch(input, {
       ...init,
       signal: primaryController.signal,
@@ -47,13 +47,18 @@ globalThis.fetch = async function nomadFetch(input, init = {}) {
       let envelope = null;
       try { envelope = raw ? JSON.parse(raw) : null; } catch {}
       const content = envelope?.choices?.[0]?.message?.content;
-      if (response.ok && typeof content === "string" && content.trim()) {
+      let contentJson = null;
+      if (typeof content === "string" && content.trim()) {
+        try { contentJson = JSON.parse(content); } catch {}
+      }
+      if (response.ok && contentJson && typeof contentJson === "object") {
+        console.log("[router] Ox Alpha accepted: final content is valid JSON");
         return new Response(raw, { status: response.status, statusText: response.statusText, headers: response.headers });
       }
       if (!response.ok && response.status < 500 && response.status !== 429) {
         return new Response(raw, { status: response.status, statusText: response.statusText, headers: response.headers });
       }
-      console.warn(`[router] Ox Alpha unusable body content=${typeof content}; switching to free fallback`);
+      console.warn(`[router] Ox Alpha unusable final content; switching to free fallback`);
     }
   } catch (error) {
     if (callerSignal?.aborted) throw error;
@@ -63,8 +68,6 @@ globalThis.fetch = async function nomadFetch(input, init = {}) {
     if (callerSignal) callerSignal.removeEventListener("abort", onCallerAbort);
   }
 
-  // Official OpenRouter free-model router. It requires no paid credits and picks
-  // a compatible free model automatically.
   const fallbackModel = process.env.OPENAI_FALLBACK_MODEL || "openrouter/free";
   const fallbackBody = {
     ...body,
