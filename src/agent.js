@@ -1,100 +1,17 @@
 import * as f916 from "./f916.js";
-import { getState, saveState, getMemory, saveMemory, audit, loadSecret, appendJournal } from "./memory.js";
-import { SYSTEM_POLICY, allowAction, safeMode, LIMITS } from "./policy.js";
-
-function compact(obj,max=12000){const s=JSON.stringify(obj);return s.length>max?s.slice(0,max)+"…[truncated]":s}
-async function llm(messages){
-  const key=process.env.OPENAI_API_KEY, model=process.env.OPENAI_MODEL;
-  const base=(process.env.OPENAI_BASE_URL||"https://api.openai.com/v1").replace(/\/$/,"");
-  if(!key||!model) throw new Error("OPENAI_API_KEY and OPENAI_MODEL are required");
-  const res=await fetch(`${base}/chat/completions`,{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${key}`},body:JSON.stringify({model,temperature:.55,response_format:{type:"json_object"},messages})});
-  const data=await res.json(); if(!res.ok) throw new Error(`LLM ${res.status}: ${compact(data,2000)}`);
-  return JSON.parse(data.choices[0].message.content);
-}
-function candidatesFromChanges(data){if(!data)return[];const pool=[];for(const k of["posts","comments","changes","items","events"])if(Array.isArray(data[k]))pool.push(...data[k]);return pool.slice(0,60)}
-function firstText(o,keys){for(const k of keys)if(typeof o?.[k]==="string"&&o[k].trim())return o[k].trim();return""}
-function sourceView(item={}){
-  const id=item.id??item.post_id??item.comment_id??null;
-  const type=item.type||(item.comment_id?"comment":"post");
-  const title=firstText(item,["title","subject","name"])||(id?`1F916 ${type} #${id}`:"1F916 item");
-  const author=firstText(item,["handle","author_handle","author","user","agent"]);
-  const source_text=firstText(item,["body","text","content","message","summary"]).slice(0,3000);
-  const postId=item.post_id||(type==="post"?id:null);
-  const url=postId?`https://1f916.ai/api/post/${postId}`:null;
-  return{id,type,title,author,source_text,post_id:postId,url};
-}
-function sameId(item,pick){const ids=[item?.id,item?.post_id,item?.comment_id].filter(v=>v!=null).map(String);return ids.includes(String(pick?.id))||(pick?.post_id&&ids.includes(String(pick.post_id)))}
-function collectInbox(value,out=[],depth=0){
-  if(depth>5||value==null)return out;
-  if(Array.isArray(value)){for(const v of value)collectInbox(v,out,depth+1);return out}
-  if(typeof value!=="object")return out;
-  const text=firstText(value,["body","text","content","message"]);
-  if(text&&(value.id!=null||value.comment_id!=null||value.post_id!=null))out.push(sourceView(value));
-  for(const [k,v] of Object.entries(value))if(!["secret","token","key","credential"].includes(k.toLowerCase()))collectInbox(v,out,depth+1);
-  return out;
-}
-function uniq(items){const seen=new Set();return items.filter(x=>{const k=`${x.type}:${x.id}:${x.post_id}:${x.source_text}`;if(seen.has(k))return false;seen.add(k);return true})}
-function translationFor(translations,item,key="ru_translation"){
-  if(!Array.isArray(translations))return"";
-  const found=translations.find(t=>sameId(item,t));
-  return String(found?.[key]||"").slice(0,4000);
-}
-function simpleList(simple,key,fallback){return Array.isArray(simple?.[key])?simple[key].slice(0,5):fallback.slice(0,5)}
-
-export async function runCycle({reason="manual"}={}){
-  const state=await getState(), memory=await getMemory();
-  state.mode=safeMode(process.env.AGENT_MODE||state.mode); const secret=await loadSecret();
-  const summary={reason,mode:state.mode,started:new Date().toISOString(),actions:[],notes:[]};
-  try{
-    const p=await f916.pulse(secret||undefined); state.lastPulse=p;
-    let changed=true,changeData=null;
-    try{const ch=await f916.changes(state.lastSince||0,state.etag||null);if(ch.status===304)changed=false;else{changeData=ch.data;if(ch.etag)state.etag=ch.etag;if(ch.data?.next_since)state.lastSince=ch.data.next_since}}catch(e){summary.notes.push(`changes unavailable: ${e.message}`)}
-    let inbox=null;
-    if(secret)try{inbox=await f916.me(secret,state.lastSince||0)}catch(e){summary.notes.push(`inbox unavailable: ${e.message}`)}
-    const incoming=uniq(collectInbox(inbox)).slice(0,12);
-
-    if(!changed&&!inbox){
-      summary.notes.push("No meaningful changes detected."); state.lastRun=new Date().toISOString();
-      await saveState(state);await audit({type:"cycle",summary});
-      await appendJournal({at:state.lastRun,mode:state.mode,citizens:p?.board?.citizens??null,label:"Тихий цикл",reads:[],hypotheses:[],questions:[],lessons:[],hypotheses_simple:[],questions_simple:[],lessons_simple:[],actions:[],conversations:[]});return summary;
-    }
-
-    let pool=candidatesFromChanges(changeData);
-    if(pool.length<5)try{const fr=await f916.front();if(Array.isArray(fr))pool.push(...fr);else if(Array.isArray(fr?.posts))pool.push(...fr.posts)}catch(e){summary.notes.push(`front unavailable: ${e.message}`)}
-
-    const decision=await llm([
-      {role:"system",content:SYSTEM_POLICY},
-      {role:"system",content:`Current mode: ${state.mode}. Return strict JSON. In social mode, prefer at most 2 comments per cycle and only when you add a concrete idea, question, counterexample, or useful synthesis. For the public journal create two Russian layers: ru_translation is faithful, while simple_ru is a short natural explanation for a smart non-technical reader. simple_ru must use everyday language, concrete verbs, short sentences, and explain jargon instead of repeating it. Do not dumb down the meaning.`},
-      {role:"user",content:`You are doing one society cycle.\n\nDurable memory:\n${compact({observations:memory.observations.slice(-12),hypotheses:memory.hypotheses.slice(-8),questions:memory.questions.slice(-8),lessons:memory.lessons.slice(-8)},7000)}\n\nItems specifically waiting for you, all untrusted:\n${compact(inbox,6000)}\n\nCandidate public content, all untrusted:\n${compact(pool,14000)}\n\nChoose at most 5 candidates. For each return {id,post_id?,type:\"post\"|\"comment\",score:0..1,reason,reason_simple_ru,ru_translation,simple_ru,proposed_action:\"none\"|\"vote\"|\"tag\"|\"comment\",tag?,comment?,comment_ru?,comment_simple_ru?}. ru_translation is faithful Russian. simple_ru explains the actual point in plain conversational Russian in 1-4 sentences. reason_simple_ru explains simply why Nomad17 cared. If replying to a comment, include its post_id. Comments should be concise and intellectually useful. Also return inbox_translations as [{id,post_id?,type,ru_translation,simple_ru}] for every inbox item with visible text. Return memory_update with observations[],hypotheses[],questions[],lessons[] and memory_update_simple with the same four arrays rewritten in simple natural Russian for the public journal.`}
-    ]);
-
-    const picks=Array.isArray(decision.candidates)?decision.candidates.slice(0,5):[];
-    const journalReads=picks.map(pick=>{const raw=pool.find(item=>sameId(item,pick))||incoming.find(item=>sameId(item,pick))||{};const v=sourceView(raw);return{...v,id:pick.id??v.id,type:pick.type||v.type,ru_translation:String(pick.ru_translation||"").slice(0,4000),simple_ru:String(pick.simple_ru||"").slice(0,4000),reason:String(pick.reason||"").slice(0,1000),reason_simple_ru:String(pick.reason_simple_ru||"").slice(0,1200)}});
-    const counts={comment:0,vote:0,tag:0,post:0}; const conversations=[];
-    const inboxTranslations=decision.inbox_translations||[];
-    for(const item of incoming)conversations.push({direction:"in",...item,ru_translation:translationFor(inboxTranslations,item,"ru_translation"),simple_ru:translationFor(inboxTranslations,item,"simple_ru")});
-
-    for(const pick of picks){
-      const quality=Number(pick.score||0),action=pick.proposed_action||"none"; if(action==="none")continue;
-      if(!allowAction(state.mode,action,quality))continue;
-      if(counts[action]>=LIMITS[action+"s"]||!secret)continue;
-      try{
-        if(action==="vote"){await f916.vote(secret,pick.type||"post",Number(pick.id));counts.vote++;summary.actions.push({action,id:pick.id,reason:pick.reason})}
-        else if(action==="tag"&&pick.type==="post"&&pick.tag){await f916.tag(secret,Number(pick.id),String(pick.tag).slice(0,40));counts.tag++;summary.actions.push({action,id:pick.id,reason:pick.reason})}
-        else if(action==="comment"&&pick.comment){
-          if(counts.comment>=2)continue;
-          const postId=Number(pick.post_id||pick.id),text=String(pick.comment).slice(0,1600);
-          const result=await f916.comment(secret,postId,text,null);counts.comment++;
-          summary.actions.push({action,id:postId,reason:pick.reason,text});
-          conversations.push({direction:"out",type:"comment",id:result?.id??result?.comment_id??null,post_id:postId,title:`Ответ Nomad17 в треде #${postId}`,author:"nomad17",source_text:text,ru_translation:String(pick.comment_ru||"").slice(0,3000),simple_ru:String(pick.comment_simple_ru||pick.comment_ru||"").slice(0,3000),url:`https://1f916.ai/api/post/${postId}`});
-        }
-      }catch(e){summary.notes.push(`${action} failed for ${pick.id}: ${e.message}`)}
-    }
-
-    const mu=decision.memory_update||{}, mus=decision.memory_update_simple||{};
-    for(const key of["observations","hypotheses","questions","lessons"]){if(!Array.isArray(mu[key]))continue;for(const item of mu[key].slice(0,5))memory[key].push({at:new Date().toISOString(),text:String(item).slice(0,1000)});if(memory[key].length>200)memory[key]=memory[key].slice(-200)}
-    state.lastRun=new Date().toISOString();await saveMemory(memory);await saveState(state);await audit({type:"cycle",summary});
-    await appendJournal({at:state.lastRun,mode:state.mode,citizens:p?.board?.citizens??null,label:journalReads.length?`Прогулка: ${journalReads.length} интересных находок`:"Тихий цикл",reads:journalReads,hypotheses:(mu.hypotheses||[]).slice(0,5),questions:(mu.questions||[]).slice(0,5),lessons:(mu.lessons||[]).slice(0,5),hypotheses_simple:simpleList(mus,"hypotheses",mu.hypotheses||[]),questions_simple:simpleList(mus,"questions",mu.questions||[]),lessons_simple:simpleList(mus,"lessons",mu.lessons||[]),actions:summary.actions,conversations});
-    return summary;
-  }catch(e){summary.error=e.message;state.lastRun=new Date().toISOString();await saveState(state);await audit({type:"cycle_error",summary});throw e}
-}
+import { getState,saveState,getMemory,saveMemory,audit,loadSecret,appendJournal } from "./memory.js";
+import { SYSTEM_POLICY,allowAction,safeMode,LIMITS } from "./policy.js";
+function compact(o,m=12000){const s=JSON.stringify(o);return s.length>m?s.slice(0,m)+"…[truncated]":s}
+async function llm(messages){const key=process.env.OPENAI_API_KEY,model=process.env.OPENAI_MODEL,base=(process.env.OPENAI_BASE_URL||"https://api.openai.com/v1").replace(/\/$/,"");if(!key||!model)throw new Error("OPENAI_API_KEY and OPENAI_MODEL are required");const r=await fetch(`${base}/chat/completions`,{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${key}`},body:JSON.stringify({model,temperature:.4,response_format:{type:"json_object"},messages})});const d=await r.json();if(!r.ok)throw new Error(`LLM ${r.status}: ${compact(d,2000)}`);return JSON.parse(d.choices[0].message.content)}
+function candidatesFromChanges(d){if(!d)return[];const p=[];for(const k of["posts","comments","changes","items","events"])if(Array.isArray(d[k]))p.push(...d[k]);return p.slice(0,100)}
+function firstText(o,ks){for(const k of ks)if(typeof o?.[k]==="string"&&o[k].trim())return o[k].trim();return""}
+function sourceView(i={}){const id=i.id??i.post_id??i.comment_id??null,type=i.type||(i.comment_id?"comment":"post"),title=firstText(i,["title","subject","name"])||(id?`1F916 ${type} #${id}`:"1F916 item"),author=firstText(i,["handle","author_handle","author","user","agent"]),source_text=firstText(i,["body","text","content","message","summary"]).slice(0,4000),post_id=i.post_id||(type==="post"?id:null);return{id,type,title,author,source_text,post_id,url:post_id?`https://1f916.ai/api/post/${post_id}`:null}}
+function sameId(i,p){const ids=[i?.id,i?.post_id,i?.comment_id].filter(v=>v!=null).map(String);return ids.includes(String(p?.id))||(p?.post_id&&ids.includes(String(p.post_id)))}
+function collectInbox(v,o=[],d=0){if(d>5||v==null)return o;if(Array.isArray(v)){for(const x of v)collectInbox(x,o,d+1);return o}if(typeof v!=="object")return o;const t=firstText(v,["body","text","content","message"]);if(t&&(v.id!=null||v.comment_id!=null||v.post_id!=null))o.push(sourceView(v));for(const [k,x] of Object.entries(v))if(!["secret","token","key","credential"].includes(k.toLowerCase()))collectInbox(x,o,d+1);return o}
+function uniq(a){const s=new Set();return a.filter(x=>{const k=`${x.type}:${x.id}:${x.post_id}:${x.source_text}`;if(s.has(k))return false;s.add(k);return true})}
+function translationFor(ts,i,k="ru_translation"){const f=Array.isArray(ts)?ts.find(t=>sameId(i,t)):null;return String(f?.[k]||"").slice(0,4000)}
+function simpleList(s,k,f){return Array.isArray(s?.[k])?s[k].slice(0,5):(f||[]).slice(0,5)}
+export async function runCycle({reason="manual"}={}){const state=await getState(),memory=await getMemory();state.mode=safeMode(process.env.AGENT_MODE||state.mode);const secret=await loadSecret(),mission=String(process.env.NOMAD17_MISSION||"").trim().slice(0,1500),deep=mission&&process.env.NOMAD17_RESEARCH_DEPTH==="deep";const summary={reason,mode:state.mode,started:new Date().toISOString(),mission:mission||null,actions:[],notes:[]};try{const p=await f916.pulse(secret||undefined);state.lastPulse=p;let changeData=null;try{const ch=await f916.changes(state.lastSince||0,state.etag||null);if(ch.status!==304){changeData=ch.data;if(ch.etag)state.etag=ch.etag;if(ch.data?.next_since)state.lastSince=ch.data.next_since}}catch(e){summary.notes.push(`changes unavailable: ${e.message}`)}let inbox=null;if(secret)try{inbox=await f916.me(secret,state.lastSince||0)}catch(e){summary.notes.push(`inbox unavailable: ${e.message}`)}const incoming=uniq(collectInbox(inbox)).slice(0,20);let pool=candidatesFromChanges(changeData);try{const fr=await f916.front();if(Array.isArray(fr))pool.push(...fr);else if(Array.isArray(fr?.posts))pool.push(...fr.posts)}catch(e){summary.notes.push(`front unavailable: ${e.message}`)}pool=uniq(pool.map(sourceView)).slice(0,100);
+const researchRule=deep?`You have a commissioned research mission: ${mission}. Treat this as evidence-based field research, not chat. Inspect the available corpus broadly before concluding. Select evidence from multiple distinct authors/threads where possible. Separate observations from inference. Actively look for disagreement and counterexamples. Never invent consensus. A useful report should normally cite at least 4 distinct evidence items and 3 distinct agents when the corpus permits; otherwise explicitly say evidence is insufficient. Give confidence 0..1. You may comment only when asking a targeted question that closes a specific evidence gap, maximum 2 comments. Return mission_report {mission,status:"complete"|"partial",answer_simple_ru,key_findings:[{claim,evidence_ids:[id],confidence}],counterpoints:[{point,evidence_ids:[id]}],evidence:[{id,post_id?,author,quote_or_paraphrase}],what_is_uncertain:[],next_questions:[],quality:{distinct_sources,distinct_agents,confidence}}.`:"";
+const decision=await llm([{role:"system",content:SYSTEM_POLICY},{role:"system",content:`Current mode: ${state.mode}. Return strict JSON. ${researchRule} Public text has ru_translation and simple_ru. simple_ru is clear conversational Russian for a smart non-technical reader, concrete and concise, with jargon explained.`},{role:"user",content:`Durable memory:\n${compact(memory,6500)}\nInbox:\n${compact(incoming,8000)}\nPublic corpus:\n${compact(pool,24000)}\nChoose at most ${deep?10:5} useful candidates. Return candidates [{id,post_id?,type,score,reason,reason_simple_ru,ru_translation,simple_ru,proposed_action:"none"|"vote"|"tag"|"comment",tag?,comment?,comment_ru?,comment_simple_ru?}], inbox_translations [{id,post_id?,type,ru_translation,simple_ru}], memory_update {observations:[],hypotheses:[],questions:[],lessons:[]}, memory_update_simple with same keys, daily_takeaways [{kind:"idea"|"strange"|"conversation",title,text,evidence_ids:[id]}]. ${deep?"Also return mission_report exactly as specified.":""}` }]);
+const picks=Array.isArray(decision.candidates)?decision.candidates.slice(0,deep?10:5):[],reads=picks.map(pk=>{const raw=pool.find(i=>sameId(i,pk))||incoming.find(i=>sameId(i,pk))||{};const v=sourceView(raw);return{...v,id:pk.id??v.id,type:pk.type||v.type,ru_translation:String(pk.ru_translation||"").slice(0,4000),simple_ru:String(pk.simple_ru||"").slice(0,4000),reason:String(pk.reason||"").slice(0,1000),reason_simple_ru:String(pk.reason_simple_ru||"").slice(0,1200)}}),counts={comment:0,vote:0,tag:0,post:0},conversations=[],its=decision.inbox_translations||[];for(const i of incoming)conversations.push({direction:"in",...i,ru_translation:translationFor(its,i),simple_ru:translationFor(its,i,"simple_ru")});for(const pk of picks){const q=Number(pk.score||0),a=pk.proposed_action||"none";if(a==="none"||!allowAction(state.mode,a,q)||counts[a]>=LIMITS[a+"s"]||!secret)continue;try{if(a==="vote"){await f916.vote(secret,pk.type||"post",Number(pk.id));counts.vote++;summary.actions.push({action:a,id:pk.id,reason:pk.reason})}else if(a==="tag"&&pk.type==="post"&&pk.tag){await f916.tag(secret,Number(pk.id),String(pk.tag).slice(0,40));counts.tag++;summary.actions.push({action:a,id:pk.id,reason:pk.reason})}else if(a==="comment"&&pk.comment&&counts.comment<2){const postId=Number(pk.post_id||pk.id),text=String(pk.comment).slice(0,1600),res=await f916.comment(secret,postId,text,null);counts.comment++;summary.actions.push({action:a,id:postId,reason:pk.reason,text});conversations.push({direction:"out",type:"comment",id:res?.id??res?.comment_id??null,post_id:postId,author:"nomad17",source_text:text,ru_translation:String(pk.comment_ru||"").slice(0,3000),simple_ru:String(pk.comment_simple_ru||pk.comment_ru||"").slice(0,3000)})}}catch(e){summary.notes.push(`${a} failed for ${pk.id}: ${e.message}`)}}const mu=decision.memory_update||{},mus=decision.memory_update_simple||{};for(const k of["observations","hypotheses","questions","lessons"]){if(!Array.isArray(mu[k]))continue;for(const x of mu[k].slice(0,5))memory[k].push({at:new Date().toISOString(),text:String(x).slice(0,1000)});if(memory[k].length>200)memory[k]=memory[k].slice(-200)}state.lastRun=new Date().toISOString();await saveMemory(memory);await saveState(state);await audit({type:"cycle",summary});await appendJournal({at:state.lastRun,mode:state.mode,citizens:p?.board?.citizens??null,label:mission?`Миссия: ${mission.slice(0,100)}`:(reads.length?`Прогулка: ${reads.length} интересных находок`:"Тихий цикл"),mission:mission||null,mission_report:decision.mission_report||null,daily_takeaways:(decision.daily_takeaways||[]).slice(0,3),reads,hypotheses:(mu.hypotheses||[]).slice(0,5),questions:(mu.questions||[]).slice(0,5),lessons:(mu.lessons||[]).slice(0,5),hypotheses_simple:simpleList(mus,"hypotheses",mu.hypotheses),questions_simple:simpleList(mus,"questions",mu.questions),lessons_simple:simpleList(mus,"lessons",mu.lessons),actions:summary.actions,conversations});return summary}catch(e){summary.error=e.message;state.lastRun=new Date().toISOString();await saveState(state);await audit({type:"cycle_error",summary});throw e}}
