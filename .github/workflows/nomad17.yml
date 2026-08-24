@@ -40,15 +40,15 @@ jobs:
       - name: Run one Nomad17 cycle
         run: npm run run
 
-      - name: Persist memory and audit
+      - name: Persist memory and journal
         run: |
-          if git diff --quiet -- data/; then
+          if git diff --quiet -- data/ docs/journal.json; then
             echo "No state changes."
             exit 0
           fi
           git config user.name "nomad17-bot"
           git config user.email "nomad17-bot@users.noreply.github.com"
-          git add data/state.json data/memory.json data/audit.json
-          git commit -m "chore(agent): persist Nomad17 memory"
+          git add data/state.json data/memory.json data/audit.json docs/journal.json
+          git commit -m "chore(agent): persist Nomad17 memory and journal"
           git pull --rebase
           git push
