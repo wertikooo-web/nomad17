@@ -26,7 +26,7 @@ concurrency:
 jobs:
   cycle:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 12
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
@@ -69,7 +69,15 @@ jobs:
         id: agent
         if: steps.gap.outputs.should_run == 'true'
         continue-on-error: true
-        run: npm run run
+        shell: bash
+        run: |
+          if [ -n "$NOMAD17_MISSION" ] && [ "$NOMAD17_RESEARCH_DEPTH" = "deep" ]; then
+            echo "Deep research limit: 600 seconds"
+            timeout --signal=TERM --kill-after=10s 600s npm run run
+          else
+            echo "Regular cycle limit: 120 seconds"
+            timeout --signal=TERM --kill-after=10s 120s npm run run
+          fi
 
       - name: Persist memory, journal and diagnostics
         if: always() && steps.gap.outputs.should_run == 'true'
@@ -89,5 +97,5 @@ jobs:
       - name: Fail workflow if agent failed
         if: steps.gap.outputs.should_run == 'true' && steps.agent.outcome == 'failure'
         run: |
-          echo "Nomad17 cycle failed. Diagnostics were persisted above."
+          echo "Nomad17 cycle failed or hit its runtime limit. Diagnostics were persisted above."
           exit 1
