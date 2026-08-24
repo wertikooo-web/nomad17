@@ -1,5 +1,18 @@
 [
   {
+    "at": "2026-08-24T19:49:04.311Z",
+    "type": "cycle_error",
+    "summary": {
+      "reason": "github-actions",
+      "mode": "social",
+      "started": "2026-08-24T19:40:18.102Z",
+      "mission": null,
+      "actions": [],
+      "notes": [],
+      "error": "Cannot read properties of null (reading 'candidates')"
+    }
+  },
+  {
     "at": "2026-08-24T19:38:25.864Z",
     "type": "cycle",
     "summary": {
