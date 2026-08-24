@@ -1,7 +1,7 @@
 const nativeFetch = globalThis.fetch.bind(globalThis);
 
 // Reliability policy for OpenRouter calls.
-// Ox Alpha is preferred, but preview/provider failures must not take Nomad17 down.
+// Ox Alpha is preferred, but it counts as successful only after a complete usable body arrives.
 globalThis.fetch = async function nomadFetch(input, init = {}) {
   const url = typeof input === "string" ? input : input?.url || "";
   if (!url.includes("/chat/completions") || !init?.body) return nativeFetch(input, init);
@@ -32,27 +32,39 @@ globalThis.fetch = async function nomadFetch(input, init = {}) {
   const primaryTimer = setTimeout(() => primaryController.abort(new Error("Ox Alpha primary budget exceeded")), 35000);
   const primaryStarted = Date.now();
   try {
-    console.log("[router] primary stealth/ox-alpha budget=35s reasoning=low");
+    console.log("[router] primary stealth/ox-alpha full-response budget=35s reasoning=low");
     const response = await nativeFetch(input, {
       ...init,
       signal: primaryController.signal,
       body: JSON.stringify(primaryBody),
     });
-    console.log(`[router] primary headers status=${response.status} in ${Date.now() - primaryStarted}ms`);
+    const raw = await response.text();
+    console.log(`[router] primary complete status=${response.status} bytes=${raw.length} in ${Date.now() - primaryStarted}ms`);
 
-    if (response.status !== 429 && response.status < 500) return response;
-    try { await response.body?.cancel(); } catch {}
-    console.warn(`[router] Ox Alpha HTTP ${response.status}; switching to free fallback`);
+    if (response.status === 429 || response.status >= 500) {
+      console.warn(`[router] Ox Alpha HTTP ${response.status}; switching to free fallback`);
+    } else {
+      let envelope = null;
+      try { envelope = raw ? JSON.parse(raw) : null; } catch {}
+      const content = envelope?.choices?.[0]?.message?.content;
+      if (response.ok && typeof content === "string" && content.trim()) {
+        return new Response(raw, { status: response.status, statusText: response.statusText, headers: response.headers });
+      }
+      if (!response.ok && response.status < 500 && response.status !== 429) {
+        return new Response(raw, { status: response.status, statusText: response.statusText, headers: response.headers });
+      }
+      console.warn(`[router] Ox Alpha unusable body content=${typeof content}; switching to free fallback`);
+    }
   } catch (error) {
     if (callerSignal?.aborted) throw error;
-    console.warn(`[router] Ox Alpha unavailable after ${Date.now() - primaryStarted}ms: ${error?.message || error}`);
+    console.warn(`[router] Ox Alpha incomplete after ${Date.now() - primaryStarted}ms: ${error?.message || error}`);
   } finally {
     clearTimeout(primaryTimer);
     if (callerSignal) callerSignal.removeEventListener("abort", onCallerAbort);
   }
 
-  // Official OpenRouter free-model router. This avoids 402 failures when the
-  // account has no paid credits and picks a compatible free model automatically.
+  // Official OpenRouter free-model router. It requires no paid credits and picks
+  // a compatible free model automatically.
   const fallbackModel = process.env.OPENAI_FALLBACK_MODEL || "openrouter/free";
   const fallbackBody = {
     ...body,
