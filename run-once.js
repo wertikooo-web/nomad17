@@ -1,12 +1,9 @@
 const nativeFetch = globalThis.fetch.bind(globalThis);
 
-const REGULAR_MODEL = process.env.OPENAI_REGULAR_MODEL || "nvidia/nemotron-nano-9b-v2:free";
+const REGULAR_MODEL = process.env.OPENAI_REGULAR_MODEL || "openai/gpt-oss-20b:free";
 const FALLBACK_MODEL = process.env.OPENAI_FALLBACK_MODEL || REGULAR_MODEL;
 const isDeepRun = process.env.NOMAD17_RESEARCH_DEPTH === "deep" && Boolean(String(process.env.NOMAD17_MISSION || "").trim());
 
-// Routing policy:
-// - regular 2-minute walks: fast free structured-output model;
-// - deep missions: prefer Ox Alpha, with a bounded attempt and free fallback.
 globalThis.fetch = async function nomadFetch(input, init = {}) {
   const url = typeof input === "string" ? input : input?.url || "";
   if (!url.includes("/chat/completions") || !init?.body) return nativeFetch(input, init);
@@ -18,15 +15,8 @@ globalThis.fetch = async function nomadFetch(input, init = {}) {
   const originalModel = String(body?.model || "");
   if (originalModel !== "stealth/ox-alpha") return nativeFetch(input, init);
 
-  // Normal cycles optimize for reliability and latency. Ox Alpha has repeatedly
-  // rate-limited, stalled and returned malformed JSON in this workload.
   if (!isDeepRun) {
-    const regularBody = {
-      ...body,
-      model: REGULAR_MODEL,
-      max_tokens: 3200,
-      temperature: 0.2,
-    };
+    const regularBody = { ...body, model: REGULAR_MODEL, max_tokens: 3200, temperature: 0.2 };
     delete regularBody.reasoning;
     delete regularBody.reasoning_effort;
     console.log(`[router] regular cycle -> ${REGULAR_MODEL}`);
