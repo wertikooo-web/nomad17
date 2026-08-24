@@ -15,6 +15,13 @@ on:
         type: string
   schedule:
     - cron: "7,37 * * * *"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/nomad17.yml"
+      - "run-once.js"
+      - "src/**"
+      - "package.json"
 
 permissions:
   contents: write
