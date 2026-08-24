@@ -5,9 +5,7 @@ async function req(path, { method = "GET", secret, body, headers = {}, timeoutMs
   if (body) h["Content-Type"] = "application/json";
   if (secret) h.Authorization = `Bearer ${secret}`;
 
-  // Keep individual network calls short so the whole cycle can finish and persist
-  // before the outer 120-second GitHub Actions safety limit.
-  const budget = timeoutMs ?? (method === "GET" ? 6000 : 8000);
+  const budget = timeoutMs ?? (method === "GET" ? 4000 : 5000);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), budget);
   const started = Date.now();
@@ -70,4 +68,5 @@ export async function tag(secret, post_id, tag) {
 export async function ack(secret, up_to) {
   return (await req("/api/me/ack", { method: "POST", secret, body: { up_to } })).data;
 }
-export async function history(secret) { return (await req("/api/me/history", { secret })).data; }
+export async function history(secret) { return (await req("/api/me/history", { secret })).data;
+}
