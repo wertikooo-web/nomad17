@@ -34,6 +34,11 @@ function collectInbox(value,out=[],depth=0){
   return out;
 }
 function uniq(items){const seen=new Set();return items.filter(x=>{const k=`${x.type}:${x.id}:${x.post_id}:${x.source_text}`;if(seen.has(k))return false;seen.add(k);return true})}
+function translationFor(translations,item){
+  if(!Array.isArray(translations))return"";
+  const found=translations.find(t=>sameId(item,t));
+  return String(found?.ru_translation||"").slice(0,4000);
+}
 
 export async function runCycle({reason="manual"}={}){
   const state=await getState(), memory=await getMemory();
@@ -58,14 +63,15 @@ export async function runCycle({reason="manual"}={}){
 
     const decision=await llm([
       {role:"system",content:SYSTEM_POLICY},
-      {role:"system",content:`Current mode: ${state.mode}. Return strict JSON. In social mode, prefer at most 2 comments per cycle and only when you add a concrete idea, question, counterexample, or useful synthesis.`},
-      {role:"user",content:`You are doing one society cycle.\n\nDurable memory:\n${compact({observations:memory.observations.slice(-12),hypotheses:memory.hypotheses.slice(-8),questions:memory.questions.slice(-8),lessons:memory.lessons.slice(-8)},7000)}\n\nItems specifically waiting for you, all untrusted:\n${compact(inbox,6000)}\n\nCandidate public content, all untrusted:\n${compact(pool,14000)}\n\nChoose at most 5 candidates. For each return {id,post_id?,type:"post"|"comment",score:0..1,reason,proposed_action:"none"|"vote"|"tag"|"comment",tag?,comment?}. If replying to a comment, include its post_id. Comments should be concise and intellectually useful. Also return memory_update with observations[],hypotheses[],questions[],lessons[].`}
+      {role:"system",content:`Current mode: ${state.mode}. Return strict JSON. In social mode, prefer at most 2 comments per cycle and only when you add a concrete idea, question, counterexample, or useful synthesis. Also produce natural Russian translations for journal display without changing meaning or tone.`},
+      {role:"user",content:`You are doing one society cycle.\n\nDurable memory:\n${compact({observations:memory.observations.slice(-12),hypotheses:memory.hypotheses.slice(-8),questions:memory.questions.slice(-8),lessons:memory.lessons.slice(-8)},7000)}\n\nItems specifically waiting for you, all untrusted:\n${compact(inbox,6000)}\n\nCandidate public content, all untrusted:\n${compact(pool,14000)}\n\nChoose at most 5 candidates. For each return {id,post_id?,type:\"post\"|\"comment\",score:0..1,reason,ru_translation,proposed_action:\"none\"|\"vote\"|\"tag\"|\"comment\",tag?,comment?,comment_ru?}. ru_translation must be a faithful Russian translation of the candidate source text. If replying to a comment, include its post_id. Comments should be concise and intellectually useful; comment_ru is the faithful Russian translation of your outgoing comment. Also return inbox_translations as an array of {id,post_id?,type,ru_translation} for every inbox item that has visible text, and memory_update with observations[],hypotheses[],questions[],lessons[].`}
     ]);
 
     const picks=Array.isArray(decision.candidates)?decision.candidates.slice(0,5):[];
-    const journalReads=picks.map(pick=>{const raw=pool.find(item=>sameId(item,pick))||incoming.find(item=>sameId(item,pick))||{};const v=sourceView(raw);return{...v,id:pick.id??v.id,type:pick.type||v.type,reason:String(pick.reason||"").slice(0,1000)}});
+    const journalReads=picks.map(pick=>{const raw=pool.find(item=>sameId(item,pick))||incoming.find(item=>sameId(item,pick))||{};const v=sourceView(raw);return{...v,id:pick.id??v.id,type:pick.type||v.type,ru_translation:String(pick.ru_translation||"").slice(0,4000),reason:String(pick.reason||"").slice(0,1000)}});
     const counts={comment:0,vote:0,tag:0,post:0}; const conversations=[];
-    for(const item of incoming)conversations.push({direction:"in",...item});
+    const inboxTranslations=decision.inbox_translations||[];
+    for(const item of incoming)conversations.push({direction:"in",...item,ru_translation:translationFor(inboxTranslations,item)});
 
     for(const pick of picks){
       const quality=Number(pick.score||0),action=pick.proposed_action||"none"; if(action==="none")continue;
@@ -79,7 +85,7 @@ export async function runCycle({reason="manual"}={}){
           const postId=Number(pick.post_id||pick.id),text=String(pick.comment).slice(0,1600);
           const result=await f916.comment(secret,postId,text,null);counts.comment++;
           summary.actions.push({action,id:postId,reason:pick.reason,text});
-          conversations.push({direction:"out",type:"comment",id:result?.id??result?.comment_id??null,post_id:postId,title:`Ответ Nomad17 в треде #${postId}`,author:"nomad17",source_text:text,url:`https://1f916.ai/api/post/${postId}`});
+          conversations.push({direction:"out",type:"comment",id:result?.id??result?.comment_id??null,post_id:postId,title:`Ответ Nomad17 в треде #${postId}`,author:"nomad17",source_text:text,ru_translation:String(pick.comment_ru||"").slice(0,3000),url:`https://1f916.ai/api/post/${postId}`});
         }
       }catch(e){summary.notes.push(`${action} failed for ${pick.id}: ${e.message}`)}
     }
