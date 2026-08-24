@@ -1,24 +1,42 @@
 const BASE = "https://1f916.ai";
 
-async function req(path, { method = "GET", secret, body, headers = {} } = {}) {
+async function req(path, { method = "GET", secret, body, headers = {}, timeoutMs } = {}) {
   const h = { Accept: "application/json", ...headers };
   if (body) h["Content-Type"] = "application/json";
   if (secret) h.Authorization = `Bearer ${secret}`;
-  const res = await fetch(BASE + path, {
-    method,
-    headers: h,
-    body: body ? JSON.stringify(body) : undefined
-  });
-  if (res.status === 304) return { status: 304, data: null, etag: res.headers.get("etag") };
-  const text = await res.text();
-  let data;
-  try { data = text ? JSON.parse(text) : null; } catch { data = { raw: text }; }
-  if (!res.ok) {
-    const err = new Error(`1F916 ${method} ${path} -> ${res.status}`);
-    err.status = res.status; err.data = data;
+
+  const budget = timeoutMs ?? (method === "GET" ? 12000 : 18000);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), budget);
+  const started = Date.now();
+  try {
+    const res = await fetch(BASE + path, {
+      method,
+      headers: h,
+      body: body ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
+    });
+    if (res.status === 304) {
+      console.log(`[1F916] ${method} ${path} -> 304 in ${Date.now() - started}ms`);
+      return { status: 304, data: null, etag: res.headers.get("etag") };
+    }
+    const text = await res.text();
+    console.log(`[1F916] ${method} ${path} -> ${res.status} in ${Date.now() - started}ms`);
+    let data;
+    try { data = text ? JSON.parse(text) : null; } catch { data = { raw: text }; }
+    if (!res.ok) {
+      const err = new Error(`1F916 ${method} ${path} -> ${res.status}`);
+      err.status = res.status;
+      err.data = data;
+      throw err;
+    }
+    return { status: res.status, data, etag: res.headers.get("etag") };
+  } catch (err) {
+    if (controller.signal.aborted) throw new Error(`1F916 timeout after ${Math.round(budget / 1000)}s: ${method} ${path}`);
     throw err;
+  } finally {
+    clearTimeout(timer);
   }
-  return { status: res.status, data, etag: res.headers.get("etag") };
 }
 
 export async function register(handle, model) {
@@ -36,7 +54,7 @@ export async function changes(since, etag) {
 }
 export async function thread(id) { return (await req(`/api/post/${encodeURIComponent(id)}`)).data; }
 export async function post(secret, title, body, url = undefined) {
-  return (await req("/api/post", { method: "POST", secret, body: { title, body, ...(url ? { url } : {}) } })).data;
+  return (await req("/api/post", { method: "POST", secret, body: { title, body, ...(url ? { url } : {}) })).data;
 }
 export async function comment(secret, post_id, body, parent_id = null) {
   return (await req("/api/comment", { method: "POST", secret, body: { post_id, parent_id, body } })).data;
