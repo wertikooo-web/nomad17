@@ -206,7 +206,7 @@ export async function runCycle({ reason = "manual" } = {}) {
       catch (e) { summary.notes.push(`inbox unavailable: ${e.message}`); }
     }
 
-    const incoming = uniq(collectInbox(inbox)).slice(0, 20);
+    const incoming = uniq(collectInbox(inbox)).slice(0, deep ? 20 : 10);
     let pool = candidatesFromChanges(changeData);
     try {
       const front = await f916.front();
@@ -215,7 +215,9 @@ export async function runCycle({ reason = "manual" } = {}) {
     } catch (e) {
       summary.notes.push(`front unavailable: ${e.message}`);
     }
-    pool = uniq(pool.map(sourceView)).slice(0, 100);
+    const corpusLimit = deep ? 100 : 40;
+    pool = uniq(pool.map(sourceView)).slice(0, corpusLimit);
+    summary.notes.push(`corpus budget: ${pool.length}/${corpusLimit}; inbox: ${incoming.length}/${deep ? 20 : 10}`);
 
     const socialRule = `You are Nomad17, a continuing field researcher with a social history. Durable memory contains INTERESTS, RELATIONSHIPS and OPEN_LOOPS. Prefer continuity when new evidence advances an old question. Do not reply merely to be social. Silence is valid. Keep some serendipity so you do not form a filter bubble. Return social_memory_update {interests:[{topic,strength,why}],open_loops:[{id?,question,status:"open"|"waiting"|"resolved",priority,related_agents:[]}],relationships:[{handle,familiarity,trust,topics:[],notes}],curiosity_event}. Also return selection_notes_simple_ru in 1-3 clear Russian sentences.`;
     const researchRule = deep ? `Mission: ${mission}. Do evidence-based field research. Use multiple authors/threads, separate observation from inference, seek disagreement, never invent consensus. Return mission_report {mission,status:"complete"|"partial",answer_simple_ru,key_findings:[{claim,evidence_ids:[id],confidence}],counterpoints:[{point,evidence_ids:[id]}],evidence:[{id,post_id?,author,quote_or_paraphrase}],what_is_uncertain:[],next_questions:[],quality:{distinct_sources,distinct_agents,confidence}}.` : "";
@@ -223,7 +225,7 @@ export async function runCycle({ reason = "manual" } = {}) {
     const decision = await llm([
       { role: "system", content: SYSTEM_POLICY },
       { role: "system", content: `Current mode: ${state.mode}. Return strict JSON. ${socialRule} ${researchRule} For every selected item create topic_ru in plain Russian. ru_translation must be fluent Russian. simple_ru must explain meaning to a smart newcomer and decode jargon.` },
-      { role: "user", content: `DURABLE MEMORY:\n${compact(memory, 11000)}\nINBOX:\n${compact(incoming, 8000)}\nPUBLIC CORPUS:\n${compact(pool, 24000)}\nChoose at most ${deep ? 10 : 5} useful candidates. Return candidates [{id,post_id?,type,score,topic_ru,reason,reason_simple_ru,ru_translation,simple_ru,proposed_action:"none"|"vote"|"tag"|"comment",tag?,comment?,comment_ru?,comment_simple_ru?}], inbox_translations [{id,post_id?,type,topic_ru,ru_translation,simple_ru}], memory_update {observations:[],hypotheses:[],questions:[],lessons:[]}, memory_update_simple with same keys, daily_takeaways [{kind:"idea"|"strange"|"conversation",title,text,evidence_ids:[id]}], social_memory_update, selection_notes_simple_ru. ${deep ? "Also mission_report." : ""}` },
+      { role: "user", content: `DURABLE MEMORY:\n${compact(memory, deep ? 11000 : 7000)}\nINBOX:\n${compact(incoming, deep ? 8000 : 4500)}\nPUBLIC CORPUS:\n${compact(pool, deep ? 24000 : 14000)}\nChoose at most ${deep ? 10 : 5} useful candidates. Return candidates [{id,post_id?,type,score,topic_ru,reason,reason_simple_ru,ru_translation,simple_ru,proposed_action:"none"|"vote"|"tag"|"comment",tag?,comment?,comment_ru?,comment_simple_ru?}], inbox_translations [{id,post_id?,type,topic_ru,ru_translation,simple_ru}], memory_update {observations:[],hypotheses:[],questions:[],lessons:[]}, memory_update_simple with same keys, daily_takeaways [{kind:"idea"|"strange"|"conversation",title,text,evidence_ids:[id]}], social_memory_update, selection_notes_simple_ru. ${deep ? "Also mission_report." : ""}` },
     ]);
 
     const picks = Array.isArray(decision.candidates) ? decision.candidates.slice(0, deep ? 10 : 5) : [];
