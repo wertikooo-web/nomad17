@@ -5,6 +5,7 @@ try { localStorage.removeItem("nomad17-active-run"); } catch {}
   const nativeFetch = window.fetch.bind(window);
   const workerBase = window.NOMAD17_RUN_ENDPOINT.replace(/\/$/, "");
   const pendingTranslation = "Перевод ещё готовится…";
+  const ACTIONS_URL = "https://github.com/wertikooo-web/nomad17/actions/workflows/nomad17.yml";
   let statusCache = null;
   let statusCacheAt = 0;
 
@@ -37,16 +38,16 @@ try { localStorage.removeItem("nomad17-active-run"); } catch {}
       const j = await jr.json();
       const updated = Date.parse(j.updated_at || 0);
       if (updated >= after - 2000) {
-        return jsonResponse({ok:true,found:true,run:{status:"completed",conclusion:"success",updated_at:j.updated_at},job:{current_step:"Persist memory, journal and diagnostics"}});
+        return jsonResponse({ok:true,found:true,run:{status:"completed",conclusion:"success",updated_at:j.updated_at,html_url:ACTIONS_URL},job:{current_step:"Persist memory, journal and diagnostics"}});
       }
     } catch {}
     const age = Math.max(0, Date.now() - after);
     const deep = launch?.kind === "mission";
     const hardMs = deep ? 620000 : 140000;
     if (age > hardMs) {
-      return jsonResponse({ok:true,found:true,run:{status:"completed",conclusion:"timed_out"},job:{current_step:"Runtime limit reached"}});
+      return jsonResponse({ok:true,found:true,run:{status:"completed",conclusion:"timed_out",html_url:ACTIONS_URL},job:{current_step:"Runtime limit reached"}});
     }
-    return jsonResponse({ok:true,found:true,run:{status:"in_progress",conclusion:null},job:{current_step:"Run one Nomad17 cycle"},fallback:true});
+    return jsonResponse({ok:true,found:true,run:{status:"in_progress",conclusion:null,html_url:ACTIONS_URL},job:{current_step:"Run one Nomad17 cycle"},fallback:true});
   }
 
   async function workerStatus(url) {
@@ -54,8 +55,20 @@ try { localStorage.removeItem("nomad17-active-run"); } catch {}
     try {
       const r = await nativeFetch(url, {cache:"no-store"});
       if (r.ok) {
-        statusCache = r.clone(); statusCacheAt = Date.now();
-        return r;
+        const d = await r.clone().json().catch(()=>null);
+        if (d?.run && !d.run.html_url) d.run.html_url = ACTIONS_URL;
+        const launch = JSON.parse(sessionStorage.getItem("nomad17-launch") || "null");
+        const accepted = Date.parse(launch?.accepted_at || 0);
+        const age = accepted ? Date.now() - accepted : 0;
+        const limitMs = launch?.kind === "mission" ? 600000 : 120000;
+        if (d?.run?.status === "completed" && d.run.conclusion === "failure" && age >= limitMs - 5000) {
+          d.run.conclusion = "timed_out";
+          d.job = d.job || {};
+          d.job.current_step = "Runtime limit reached";
+        }
+        const out = d ? jsonResponse(d, r.status) : r;
+        statusCache = out.clone(); statusCacheAt = Date.now();
+        return out;
       }
       return journalFallback(url);
     } catch {
@@ -99,6 +112,32 @@ try { localStorage.removeItem("nomad17-active-run"); } catch {}
 
   window.addEventListener("DOMContentLoaded",()=>{
     const style=document.createElement("style");style.textContent=`.mind-shell{margin-top:34px}.mind-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px}.mind-card{border:1px solid #27303d;background:#10151dcc;border-radius:18px;padding:17px;min-width:0}.mind-title{font-weight:800;margin-bottom:13px}.mind-why{border:1px solid #394c33;background:#10170e;border-radius:14px;padding:14px 16px;margin-bottom:13px}.mind-interest,.mind-loop,.mind-person{padding:10px 0;border-bottom:1px solid #222b35}.mind-interest>div:first-child,.mind-person{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}.mind-meter{height:6px;background:#1b2520;border-radius:99px;overflow:hidden;margin:7px 0}.mind-meter i{display:block;height:100%;background:#b9ff66}.mind-card small,.mind-muted,.mind-empty{display:block;color:#8f9aaa;font-size:12px;margin-top:5px}.mind-person small{width:100%}@media(max-width:780px){.mind-grid{grid-template-columns:1fr}}`;document.head.appendChild(style);
+
+    const oldHint=[...document.querySelectorAll('.pulse .hint')].find(x=>x.textContent.includes('Обычный цикл'));
+    if(oldHint) oldHint.textContent='Обычный цикл: максимум 2 минуты. Глубокая миссия: максимум 10 минут.';
+
+    const runLink=document.getElementById('runLink');
+    const ensureLink=()=>{if(runLink && !runLink.querySelector('a')) runLink.innerHTML=`<a href="${ACTIONS_URL}" target="_blank" rel="noopener">Открыть технический лог ↗</a>`};
+    ensureLink();
+
+    const monitorTitle=document.getElementById('monitorTitle');
+    const monitorMsg=document.getElementById('monitorMsg');
+    const timer=document.getElementById('runTimer');
+    const kind=document.getElementById('monitorKind');
+    const observer=new MutationObserver(()=>{
+      ensureLink();
+      if(!monitorTitle || !monitorMsg || !timer) return;
+      const [mm,ss]=(timer.textContent||'0:0').split(':').map(Number);
+      const elapsed=(mm||0)*60+(ss||0);
+      const deep=(kind?.textContent||'').includes('DEEP');
+      const limit=deep?600:120;
+      if(monitorTitle.textContent.includes('ошиб') && elapsed>=limit-5){
+        monitorTitle.textContent=deep?'Остановлено по лимиту 10 минут':'Остановлено по лимиту 2 минуты';
+        monitorMsg.textContent='Nomad17 не успел завершить этот цикл в отведённое время. Результат мог не сохраниться. Технический лог доступен по ссылке ниже.';
+      }
+    });
+    if(document.getElementById('monitor')) observer.observe(document.getElementById('monitor'),{subtree:true,childList:true,characterData:true});
+
     const conversations=[...document.querySelectorAll("section")].find(s=>s.querySelector("h2")?.textContent.includes("Интересные разговоры"));
     const sec=document.createElement("section");sec.className="section mind-shell";sec.innerHTML='<div class="eyebrow">Mind</div><h2>Что сейчас в голове у Nomad17</h2><div id="nomad17Mind"><div class="mind-muted">Загружаю память…</div></div>';
     if(conversations)conversations.before(sec);else document.querySelector("main")?.appendChild(sec);
