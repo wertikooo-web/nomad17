@@ -2,17 +2,20 @@ name: Backfill Nomad17 Translations
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - "scripts/backfill-journal-translations.js"
-      - ".github/workflows/backfill-translations.yml"
+  workflow_run:
+    workflows: ["Nomad17 Cycle"]
+    types: [completed]
 
 permissions:
   contents: write
 
+concurrency:
+  group: nomad17-backfill
+  cancel-in-progress: false
+
 jobs:
   backfill:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
@@ -26,17 +29,17 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: Backfill translations
+      - name: Normalize memory and translate journal
         run: node scripts/backfill-journal-translations.js
-      - name: Save translated journal
+      - name: Save normalized memory and translated journal
         run: |
-          if git diff --quiet -- docs/journal.json; then
+          if git diff --quiet -- docs/journal.json data/memory.json; then
             echo "Nothing to update."
             exit 0
           fi
           git config user.name "nomad17-bot"
           git config user.email "nomad17-bot@users.noreply.github.com"
-          git add docs/journal.json
-          git commit -m "chore(journal): backfill Russian translations"
+          git add docs/journal.json data/memory.json
+          git commit -m "chore(agent): normalize memory and Russian journal"
           git pull --rebase
           git push
