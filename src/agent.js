@@ -23,10 +23,11 @@ async function llm(messages, { deep = false } = {}) {
 
   const controller = new AbortController();
   const timeoutMs = deep ? 240000 : 70000;
-  const timer = setTimeout(() => controller.abort(new Error(`LLM exceeded ${Math.round(timeoutMs / 1000)}s response budget`)), timeoutMs);
-  let response;
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const started = Date.now();
+  console.log(`[LLM] start model=${model} deep=${deep} budget=${Math.round(timeoutMs / 1000)}s`);
   try {
-    response = await fetch(`${base}/chat/completions`, {
+    const response = await fetch(`${base}/chat/completions`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
       signal: controller.signal,
@@ -38,15 +39,22 @@ async function llm(messages, { deep = false } = {}) {
         messages,
       }),
     });
+    const raw = await response.text();
+    console.log(`[LLM] response status=${response.status} bytes=${raw.length} elapsed=${Date.now() - started}ms`);
+    let data;
+    try { data = raw ? JSON.parse(raw) : {}; }
+    catch { throw new Error(`LLM returned invalid JSON envelope after ${Date.now() - started}ms`); }
+    if (!response.ok) throw new Error(`LLM ${response.status}: ${compact(data, 2000)}`);
+    const content = data?.choices?.[0]?.message?.content;
+    if (!content) throw new Error(`LLM returned no message content (${model})`);
+    try { return JSON.parse(content); }
+    catch { throw new Error(`LLM message was not valid JSON (${model})`); }
   } catch (error) {
     if (controller.signal.aborted) throw new Error(`LLM timeout after ${Math.round(timeoutMs / 1000)}s (${model})`);
     throw error;
   } finally {
     clearTimeout(timer);
   }
-  const data = await response.json();
-  if (!response.ok) throw new Error(`LLM ${response.status}: ${compact(data, 2000)}`);
-  return JSON.parse(data.choices[0].message.content);
 }
 
 function candidatesFromChanges(data) {
