@@ -1,5 +1,6 @@
 const nativeFetch = globalThis.fetch.bind(globalThis);
 
+// Production routing: regular walks prioritize predictable completion and valid structured output.
 const REGULAR_MODEL = process.env.OPENAI_REGULAR_MODEL || "openai/gpt-oss-20b:free";
 const FALLBACK_MODEL = process.env.OPENAI_FALLBACK_MODEL || REGULAR_MODEL;
 const isDeepRun = process.env.NOMAD17_RESEARCH_DEPTH === "deep" && Boolean(String(process.env.NOMAD17_MISSION || "").trim());
