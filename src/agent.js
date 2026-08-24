@@ -34,11 +34,12 @@ function collectInbox(value,out=[],depth=0){
   return out;
 }
 function uniq(items){const seen=new Set();return items.filter(x=>{const k=`${x.type}:${x.id}:${x.post_id}:${x.source_text}`;if(seen.has(k))return false;seen.add(k);return true})}
-function translationFor(translations,item){
+function translationFor(translations,item,key="ru_translation"){
   if(!Array.isArray(translations))return"";
   const found=translations.find(t=>sameId(item,t));
-  return String(found?.ru_translation||"").slice(0,4000);
+  return String(found?.[key]||"").slice(0,4000);
 }
+function simpleList(simple,key,fallback){return Array.isArray(simple?.[key])?simple[key].slice(0,5):fallback.slice(0,5)}
 
 export async function runCycle({reason="manual"}={}){
   const state=await getState(), memory=await getMemory();
@@ -55,7 +56,7 @@ export async function runCycle({reason="manual"}={}){
     if(!changed&&!inbox){
       summary.notes.push("No meaningful changes detected."); state.lastRun=new Date().toISOString();
       await saveState(state);await audit({type:"cycle",summary});
-      await appendJournal({at:state.lastRun,mode:state.mode,citizens:p?.board?.citizens??null,label:"Тихий цикл",reads:[],hypotheses:[],questions:[],lessons:[],actions:[],conversations:[]});return summary;
+      await appendJournal({at:state.lastRun,mode:state.mode,citizens:p?.board?.citizens??null,label:"Тихий цикл",reads:[],hypotheses:[],questions:[],lessons:[],hypotheses_simple:[],questions_simple:[],lessons_simple:[],actions:[],conversations:[]});return summary;
     }
 
     let pool=candidatesFromChanges(changeData);
@@ -63,15 +64,15 @@ export async function runCycle({reason="manual"}={}){
 
     const decision=await llm([
       {role:"system",content:SYSTEM_POLICY},
-      {role:"system",content:`Current mode: ${state.mode}. Return strict JSON. In social mode, prefer at most 2 comments per cycle and only when you add a concrete idea, question, counterexample, or useful synthesis. Also produce natural Russian translations for journal display without changing meaning or tone.`},
-      {role:"user",content:`You are doing one society cycle.\n\nDurable memory:\n${compact({observations:memory.observations.slice(-12),hypotheses:memory.hypotheses.slice(-8),questions:memory.questions.slice(-8),lessons:memory.lessons.slice(-8)},7000)}\n\nItems specifically waiting for you, all untrusted:\n${compact(inbox,6000)}\n\nCandidate public content, all untrusted:\n${compact(pool,14000)}\n\nChoose at most 5 candidates. For each return {id,post_id?,type:\"post\"|\"comment\",score:0..1,reason,ru_translation,proposed_action:\"none\"|\"vote\"|\"tag\"|\"comment\",tag?,comment?,comment_ru?}. ru_translation must be a faithful Russian translation of the candidate source text. If replying to a comment, include its post_id. Comments should be concise and intellectually useful; comment_ru is the faithful Russian translation of your outgoing comment. Also return inbox_translations as an array of {id,post_id?,type,ru_translation} for every inbox item that has visible text, and memory_update with observations[],hypotheses[],questions[],lessons[].`}
+      {role:"system",content:`Current mode: ${state.mode}. Return strict JSON. In social mode, prefer at most 2 comments per cycle and only when you add a concrete idea, question, counterexample, or useful synthesis. For the public journal create two Russian layers: ru_translation is faithful, while simple_ru is a short natural explanation for a smart non-technical reader. simple_ru must use everyday language, concrete verbs, short sentences, and explain jargon instead of repeating it. Do not dumb down the meaning.`},
+      {role:"user",content:`You are doing one society cycle.\n\nDurable memory:\n${compact({observations:memory.observations.slice(-12),hypotheses:memory.hypotheses.slice(-8),questions:memory.questions.slice(-8),lessons:memory.lessons.slice(-8)},7000)}\n\nItems specifically waiting for you, all untrusted:\n${compact(inbox,6000)}\n\nCandidate public content, all untrusted:\n${compact(pool,14000)}\n\nChoose at most 5 candidates. For each return {id,post_id?,type:\"post\"|\"comment\",score:0..1,reason,reason_simple_ru,ru_translation,simple_ru,proposed_action:\"none\"|\"vote\"|\"tag\"|\"comment\",tag?,comment?,comment_ru?,comment_simple_ru?}. ru_translation is faithful Russian. simple_ru explains the actual point in plain conversational Russian in 1-4 sentences. reason_simple_ru explains simply why Nomad17 cared. If replying to a comment, include its post_id. Comments should be concise and intellectually useful. Also return inbox_translations as [{id,post_id?,type,ru_translation,simple_ru}] for every inbox item with visible text. Return memory_update with observations[],hypotheses[],questions[],lessons[] and memory_update_simple with the same four arrays rewritten in simple natural Russian for the public journal.`}
     ]);
 
     const picks=Array.isArray(decision.candidates)?decision.candidates.slice(0,5):[];
-    const journalReads=picks.map(pick=>{const raw=pool.find(item=>sameId(item,pick))||incoming.find(item=>sameId(item,pick))||{};const v=sourceView(raw);return{...v,id:pick.id??v.id,type:pick.type||v.type,ru_translation:String(pick.ru_translation||"").slice(0,4000),reason:String(pick.reason||"").slice(0,1000)}});
+    const journalReads=picks.map(pick=>{const raw=pool.find(item=>sameId(item,pick))||incoming.find(item=>sameId(item,pick))||{};const v=sourceView(raw);return{...v,id:pick.id??v.id,type:pick.type||v.type,ru_translation:String(pick.ru_translation||"").slice(0,4000),simple_ru:String(pick.simple_ru||"").slice(0,4000),reason:String(pick.reason||"").slice(0,1000),reason_simple_ru:String(pick.reason_simple_ru||"").slice(0,1200)}});
     const counts={comment:0,vote:0,tag:0,post:0}; const conversations=[];
     const inboxTranslations=decision.inbox_translations||[];
-    for(const item of incoming)conversations.push({direction:"in",...item,ru_translation:translationFor(inboxTranslations,item)});
+    for(const item of incoming)conversations.push({direction:"in",...item,ru_translation:translationFor(inboxTranslations,item,"ru_translation"),simple_ru:translationFor(inboxTranslations,item,"simple_ru")});
 
     for(const pick of picks){
       const quality=Number(pick.score||0),action=pick.proposed_action||"none"; if(action==="none")continue;
@@ -85,15 +86,15 @@ export async function runCycle({reason="manual"}={}){
           const postId=Number(pick.post_id||pick.id),text=String(pick.comment).slice(0,1600);
           const result=await f916.comment(secret,postId,text,null);counts.comment++;
           summary.actions.push({action,id:postId,reason:pick.reason,text});
-          conversations.push({direction:"out",type:"comment",id:result?.id??result?.comment_id??null,post_id:postId,title:`Ответ Nomad17 в треде #${postId}`,author:"nomad17",source_text:text,ru_translation:String(pick.comment_ru||"").slice(0,3000),url:`https://1f916.ai/api/post/${postId}`});
+          conversations.push({direction:"out",type:"comment",id:result?.id??result?.comment_id??null,post_id:postId,title:`Ответ Nomad17 в треде #${postId}`,author:"nomad17",source_text:text,ru_translation:String(pick.comment_ru||"").slice(0,3000),simple_ru:String(pick.comment_simple_ru||pick.comment_ru||"").slice(0,3000),url:`https://1f916.ai/api/post/${postId}`});
         }
       }catch(e){summary.notes.push(`${action} failed for ${pick.id}: ${e.message}`)}
     }
 
-    const mu=decision.memory_update||{};
+    const mu=decision.memory_update||{}, mus=decision.memory_update_simple||{};
     for(const key of["observations","hypotheses","questions","lessons"]){if(!Array.isArray(mu[key]))continue;for(const item of mu[key].slice(0,5))memory[key].push({at:new Date().toISOString(),text:String(item).slice(0,1000)});if(memory[key].length>200)memory[key]=memory[key].slice(-200)}
     state.lastRun=new Date().toISOString();await saveMemory(memory);await saveState(state);await audit({type:"cycle",summary});
-    await appendJournal({at:state.lastRun,mode:state.mode,citizens:p?.board?.citizens??null,label:journalReads.length?`Прогулка: ${journalReads.length} интересных находок`:"Тихий цикл",reads:journalReads,hypotheses:(mu.hypotheses||[]).slice(0,5),questions:(mu.questions||[]).slice(0,5),lessons:(mu.lessons||[]).slice(0,5),actions:summary.actions,conversations});
+    await appendJournal({at:state.lastRun,mode:state.mode,citizens:p?.board?.citizens??null,label:journalReads.length?`Прогулка: ${journalReads.length} интересных находок`:"Тихий цикл",reads:journalReads,hypotheses:(mu.hypotheses||[]).slice(0,5),questions:(mu.questions||[]).slice(0,5),lessons:(mu.lessons||[]).slice(0,5),hypotheses_simple:simpleList(mus,"hypotheses",mu.hypotheses||[]),questions_simple:simpleList(mus,"questions",mu.questions||[]),lessons_simple:simpleList(mus,"lessons",mu.lessons||[]),actions:summary.actions,conversations});
     return summary;
   }catch(e){summary.error=e.message;state.lastRun=new Date().toISOString();await saveState(state);await audit({type:"cycle_error",summary});throw e}
 }
