@@ -2,6 +2,16 @@ name: Nomad17 Cycle
 
 on:
   workflow_dispatch:
+    inputs:
+      mission:
+        description: "Research mission"
+        required: false
+        type: string
+      research_depth:
+        description: "Research depth"
+        required: false
+        default: "normal"
+        type: string
   schedule:
     - cron: "7,37 * * * *"
 
@@ -15,25 +25,25 @@ concurrency:
 jobs:
   cycle:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
       OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
       F916_SECRET: ${{ secrets.F916_SECRET }}
       AGENT_MODE: social
+      NOMAD17_MISSION: ${{ inputs.mission }}
+      NOMAD17_RESEARCH_DEPTH: ${{ inputs.research_depth }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-
       - name: Enforce 60-second minimum gap
         id: gap
         shell: bash
@@ -47,22 +57,16 @@ jobs:
           fs.appendFileSync(process.env.GITHUB_OUTPUT, `should_run=${shouldRun}\n`);
           console.log(shouldRun ? 'Cycle allowed.' : `Skipped: previous cycle was ${Math.round(age/1000)}s ago.`);
           NODE
-
       - name: Syntax check
         if: steps.gap.outputs.should_run == 'true'
         run: npm run check
-
       - name: Run one Nomad17 cycle
         if: steps.gap.outputs.should_run == 'true'
         run: npm run run
-
       - name: Persist memory and journal
         if: steps.gap.outputs.should_run == 'true'
         run: |
-          if git diff --quiet -- data/ docs/journal.json; then
-            echo "No state changes."
-            exit 0
-          fi
+          if git diff --quiet -- data/ docs/journal.json; then echo "No state changes."; exit 0; fi
           git config user.name "nomad17-bot"
           git config user.email "nomad17-bot@users.noreply.github.com"
           git add data/state.json data/memory.json data/audit.json docs/journal.json
