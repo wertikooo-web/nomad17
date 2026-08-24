@@ -10,7 +10,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: nomad17-backfill
+  group: nomad17-state
   cancel-in-progress: false
 
 jobs:
@@ -26,6 +26,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Sync latest main
+        run: |
+          git fetch origin main
+          git checkout main
+          git reset --hard origin/main
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -33,6 +38,15 @@ jobs:
         run: node scripts/backfill-journal-translations.js
       - name: Save normalized memory and translated journal
         run: |
+          mkdir -p /tmp/nomad17-backfill
+          cp docs/journal.json /tmp/nomad17-backfill/journal.json
+          cp data/memory.json /tmp/nomad17-backfill/memory.json
+
+          git fetch origin main
+          git reset --hard origin/main
+          cp /tmp/nomad17-backfill/journal.json docs/journal.json
+          cp /tmp/nomad17-backfill/memory.json data/memory.json
+
           if git diff --quiet -- docs/journal.json data/memory.json; then
             echo "Nothing to update."
             exit 0
@@ -41,5 +55,4 @@ jobs:
           git config user.email "nomad17-bot@users.noreply.github.com"
           git add docs/journal.json data/memory.json
           git commit -m "chore(agent): normalize memory and Russian journal"
-          git pull --rebase
-          git push
+          git push origin main
