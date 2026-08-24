@@ -40,10 +40,9 @@ globalThis.fetch = async function nomadFetch(input, init = {}) {
     });
     console.log(`[router] primary headers status=${response.status} in ${Date.now() - primaryStarted}ms`);
 
-    // Upstream shared-pool rate limits and provider/server failures are recoverable.
     if (response.status !== 429 && response.status < 500) return response;
     try { await response.body?.cancel(); } catch {}
-    console.warn(`[router] Ox Alpha HTTP ${response.status}; switching to fallback`);
+    console.warn(`[router] Ox Alpha HTTP ${response.status}; switching to free fallback`);
   } catch (error) {
     if (callerSignal?.aborted) throw error;
     console.warn(`[router] Ox Alpha unavailable after ${Date.now() - primaryStarted}ms: ${error?.message || error}`);
@@ -52,7 +51,9 @@ globalThis.fetch = async function nomadFetch(input, init = {}) {
     if (callerSignal) callerSignal.removeEventListener("abort", onCallerAbort);
   }
 
-  const fallbackModel = process.env.OPENAI_FALLBACK_MODEL || "openrouter/auto";
+  // Official OpenRouter free-model router. This avoids 402 failures when the
+  // account has no paid credits and picks a compatible free model automatically.
+  const fallbackModel = process.env.OPENAI_FALLBACK_MODEL || "openrouter/free";
   const fallbackBody = {
     ...body,
     model: fallbackModel,
@@ -72,7 +73,7 @@ globalThis.fetch = async function nomadFetch(input, init = {}) {
 
 let exitCode = 0;
 try {
-  console.log(`[run-once] model=${process.env.OPENAI_MODEL || "unset"} fallback=${process.env.OPENAI_FALLBACK_MODEL || "openrouter/auto"}`);
+  console.log(`[run-once] model=${process.env.OPENAI_MODEL || "unset"} fallback=${process.env.OPENAI_FALLBACK_MODEL || "openrouter/free"}`);
   const { runCycle } = await import("./src/agent.js");
   const result = await runCycle({ reason: process.env.GITHUB_ACTIONS ? "github-actions" : "manual" });
   console.log(JSON.stringify(result, null, 2));
