@@ -103,3 +103,5 @@ window.addEventListener("DOMContentLoaded", () => {
   document.getElementById("missionBtn")?.addEventListener("click", clearPassword, true);
   document.getElementById("cancelRun")?.addEventListener("click", () => { password.value = ""; });
 });
+
+// one-shot verification probe
