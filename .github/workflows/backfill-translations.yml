@@ -1,0 +1,42 @@
+name: Backfill Nomad17 Translations
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/backfill-journal-translations.js"
+      - ".github/workflows/backfill-translations.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
+      OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Backfill translations
+        run: node scripts/backfill-journal-translations.js
+      - name: Save translated journal
+        run: |
+          if git diff --quiet -- docs/journal.json; then
+            echo "Nothing to update."
+            exit 0
+          fi
+          git config user.name "nomad17-bot"
+          git config user.email "nomad17-bot@users.noreply.github.com"
+          git add docs/journal.json
+          git commit -m "chore(journal): backfill Russian translations"
+          git pull --rebase
+          git push
