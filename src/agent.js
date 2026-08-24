@@ -15,17 +15,35 @@ function compact(value, max = 12000) {
   return s.length > max ? s.slice(0, max) + "…[truncated]" : s;
 }
 
-async function llm(messages) {
+async function llm(messages, { deep = false } = {}) {
   const key = process.env.OPENAI_API_KEY;
   const model = process.env.OPENAI_MODEL;
   const base = (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/$/, "");
   if (!key || !model) throw new Error("OPENAI_API_KEY and OPENAI_MODEL are required");
 
-  const response = await fetch(`${base}/chat/completions`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-    body: JSON.stringify({ model, temperature: 0.38, response_format: { type: "json_object" }, messages }),
-  });
+  const controller = new AbortController();
+  const timeoutMs = deep ? 240000 : 70000;
+  const timer = setTimeout(() => controller.abort(new Error(`LLM exceeded ${Math.round(timeoutMs / 1000)}s response budget`)), timeoutMs);
+  let response;
+  try {
+    response = await fetch(`${base}/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model,
+        temperature: 0.38,
+        max_tokens: deep ? 5000 : 2600,
+        response_format: { type: "json_object" },
+        messages,
+      }),
+    });
+  } catch (error) {
+    if (controller.signal.aborted) throw new Error(`LLM timeout after ${Math.round(timeoutMs / 1000)}s (${model})`);
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
   const data = await response.json();
   if (!response.ok) throw new Error(`LLM ${response.status}: ${compact(data, 2000)}`);
   return JSON.parse(data.choices[0].message.content);
@@ -102,11 +120,11 @@ export async function runCycle({ reason = "manual" } = {}) {
     let changeData = null;
     try { const ch = await f916.changes(state.lastSince || 0, state.etag || null); if (ch.status !== 304) { changeData = ch.data; if (ch.etag) state.etag = ch.etag; if (ch.data?.next_since) state.lastSince = ch.data.next_since; } } catch (e) { summary.notes.push(`changes unavailable: ${e.message}`); }
     let inbox = null; if (secret) try { inbox = await f916.me(secret, state.lastSince || 0); } catch (e) { summary.notes.push(`inbox unavailable: ${e.message}`); }
-    const incoming = uniq(collectInbox(inbox)).slice(0, deep ? 20 : 10);
+    const incoming = uniq(collectInbox(inbox)).slice(0, deep ? 20 : 8);
     let pool = candidatesFromChanges(changeData);
     try { const front = await f916.front(); if (Array.isArray(front)) pool.push(...front); else if (Array.isArray(front?.posts)) pool.push(...front.posts); } catch (e) { summary.notes.push(`front unavailable: ${e.message}`); }
-    const corpusLimit = deep ? 100 : 40; pool = uniq(pool.map(sourceView)).slice(0, corpusLimit);
-    summary.notes.push(`corpus budget: ${pool.length}/${corpusLimit}; inbox: ${incoming.length}/${deep ? 20 : 10}`);
+    const corpusLimit = deep ? 100 : 20; pool = uniq(pool.map(sourceView)).slice(0, corpusLimit);
+    summary.notes.push(`corpus budget: ${pool.length}/${corpusLimit}; inbox: ${incoming.length}/${deep ? 20 : 8}`);
 
     const socialRule = `You are Nomad17, a continuing field researcher with social history. Durable memory contains INTERESTS, RELATIONSHIPS and OPEN_LOOPS. Prefer continuity when evidence advances an old question. Do not reply merely to be social. Silence is valid. Keep some serendipity. Return social_memory_update {interests:[{topic,strength,why}],open_loops:[{id?,question,status:"open"|"waiting"|"resolved",priority,related_agents:[]}],relationships:[{handle,familiarity,trust,topics:[],notes}],curiosity_event}. Also return selection_notes_simple_ru in 1-3 clear Russian sentences.`;
     const plainRussianRule = `The SIMPLE Russian view is written for a curious non-technical human. For every selected item, simple_ru MUST contain four short labeled parts in this exact order: "Что произошло:", "Почему мне стало интересно:", "Что это значит:", "Зачем это может пригодиться:". Explain concrete events first, then meaning. Decode blockchain, AI, governance, finance and platform jargon in ordinary Russian. Avoid calques and bureaucratic phrases such as "он-чейн чек", "финансовые потоки", "примитив", "казённый адрес", "агентная экосистема" unless you immediately explain them in everyday words. Do not merely translate the source. reason_simple_ru must be one natural sentence answering why Nomad17 personally noticed it. topic_ru must sound like a human headline, not a taxonomy label. The Russian text should be understandable without reading the English original.`;
@@ -114,10 +132,10 @@ export async function runCycle({ reason = "manual" } = {}) {
     const decision = await llm([
       { role: "system", content: SYSTEM_POLICY },
       { role: "system", content: `Current mode: ${state.mode}. Return strict JSON. ${socialRule} ${plainRussianRule} ${researchRule} ru_translation must be fluent Russian and preserve factual detail.` },
-      { role: "user", content: `DURABLE MEMORY:\n${compact(memory, deep ? 11000 : 7000)}\nINBOX:\n${compact(incoming, deep ? 8000 : 4500)}\nPUBLIC CORPUS:\n${compact(pool, deep ? 24000 : 14000)}\nChoose at most ${deep ? 10 : 5} useful candidates. Return candidates [{id,post_id?,type,score,topic_ru,reason,reason_simple_ru,ru_translation,simple_ru,proposed_action:"none"|"vote"|"tag"|"comment",tag?,comment?,comment_ru?,comment_simple_ru?}], inbox_translations [{id,post_id?,type,topic_ru,ru_translation,simple_ru}], memory_update {observations:[],hypotheses:[],questions:[],lessons:[]}, memory_update_simple with same keys, daily_takeaways [{kind:"idea"|"strange"|"conversation",title,text,evidence_ids:[id]}], social_memory_update, selection_notes_simple_ru. ${deep ? "Also mission_report." : ""}` },
-    ]);
+      { role: "user", content: `DURABLE MEMORY:\n${compact(memory, deep ? 11000 : 4500)}\nINBOX:\n${compact(incoming, deep ? 8000 : 3000)}\nPUBLIC CORPUS:\n${compact(pool, deep ? 24000 : 8000)}\nChoose at most ${deep ? 10 : 4} useful candidates. Return candidates [{id,post_id?,type,score,topic_ru,reason,reason_simple_ru,ru_translation,simple_ru,proposed_action:"none"|"vote"|"tag"|"comment",tag?,comment?,comment_ru?,comment_simple_ru?}], inbox_translations [{id,post_id?,type,topic_ru,ru_translation,simple_ru}], memory_update {observations:[],hypotheses:[],questions:[],lessons:[]}, memory_update_simple with same keys, daily_takeaways [{kind:"idea"|"strange"|"conversation",title,text,evidence_ids:[id]}], social_memory_update, selection_notes_simple_ru. ${deep ? "Also mission_report." : ""}` },
+    ], { deep });
 
-    const picks = Array.isArray(decision.candidates) ? decision.candidates.slice(0, deep ? 10 : 5) : [];
+    const picks = Array.isArray(decision.candidates) ? decision.candidates.slice(0, deep ? 10 : 4) : [];
     const reads = picks.map(pick => { const raw = pool.find(x => sameId(x, pick)) || incoming.find(x => sameId(x, pick)) || {}; const view = sourceView(raw); return { ...view, id: pick.id ?? view.id, type: pick.type || view.type, topic_ru: String(pick.topic_ru || "").slice(0, 100), ru_translation: String(pick.ru_translation || "").slice(0, 4000), simple_ru: String(pick.simple_ru || "").slice(0, 4000), reason: String(pick.reason || "").slice(0, 1000), reason_simple_ru: String(pick.reason_simple_ru || "").slice(0, 1200) }; });
     const counts = { comment: 0, vote: 0, tag: 0, post: 0 }, conversations = [], inboxTranslations = decision.inbox_translations || [];
     for (const item of incoming) conversations.push({ direction: "in", ...item, topic_ru: translated(inboxTranslations, item, "topic_ru").slice(0, 100), ru_translation: translated(inboxTranslations, item, "ru_translation"), simple_ru: translated(inboxTranslations, item, "simple_ru") });
