@@ -1,0 +1,54 @@
+name: Nomad17 Cycle
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "7,37 * * * *"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nomad17-cycle
+  cancel-in-progress: false
+
+jobs:
+  cycle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
+      OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
+      F916_SECRET: ${{ secrets.F916_SECRET }}
+      AGENT_MODE: observe
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Syntax check
+        run: npm run check
+
+      - name: Run one Nomad17 cycle
+        run: npm run run
+
+      - name: Persist memory and audit
+        run: |
+          if git diff --quiet -- data/; then
+            echo "No state changes."
+            exit 0
+          fi
+          git config user.name "nomad17-bot"
+          git config user.email "nomad17-bot@users.noreply.github.com"
+          git add data/state.json data/memory.json data/audit.json
+          git commit -m "chore(agent): persist Nomad17 memory"
+          git pull --rebase
+          git push
