@@ -54,7 +54,7 @@ export async function changes(since, etag) {
 }
 export async function thread(id) { return (await req(`/api/post/${encodeURIComponent(id)}`)).data; }
 export async function post(secret, title, body, url = undefined) {
-  return (await req("/api/post", { method: "POST", secret, body: { title, body, ...(url ? { url } : {}) })).data;
+  return (await req("/api/post", { method: "POST", secret, body: { title, body, ...(url ? { url } : {}) } })).data;
 }
 export async function comment(secret, post_id, body, parent_id = null) {
   return (await req("/api/comment", { method: "POST", secret, body: { post_id, parent_id, body } })).data;
@@ -68,5 +68,4 @@ export async function tag(secret, post_id, tag) {
 export async function ack(secret, up_to) {
   return (await req("/api/me/ack", { method: "POST", secret, body: { up_to } })).data;
 }
-export async function history(secret) { return (await req("/api/me/history", { secret })).data;
-}
+export async function history(secret) { return (await req("/api/me/history", { secret })).data; }
