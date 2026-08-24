@@ -63,7 +63,9 @@ jobs:
 
       - name: Syntax check
         if: steps.gap.outputs.should_run == 'true'
-        run: npm run check
+        run: |
+          npm run check
+          node --check src/ask-society.js
 
       - name: Run one Nomad17 cycle
         id: agent
@@ -71,7 +73,10 @@ jobs:
         continue-on-error: true
         shell: bash
         run: |
-          if [ -n "$NOMAD17_MISSION" ] && [ "$NOMAD17_RESEARCH_DEPTH" = "deep" ]; then
+          if [[ "$NOMAD17_MISSION" == ASK_SOCIETY::* ]]; then
+            echo "Ask Society: one operator-authorized top-level post"
+            timeout --signal=TERM --kill-after=10s 120s node src/ask-society.js
+          elif [ -n "$NOMAD17_MISSION" ] && [ "$NOMAD17_RESEARCH_DEPTH" = "deep" ]; then
             echo "Deep research limit: 600 seconds"
             timeout --signal=TERM --kill-after=10s 600s npm run run
           else
