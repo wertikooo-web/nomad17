@@ -5,7 +5,9 @@ async function req(path, { method = "GET", secret, body, headers = {}, timeoutMs
   if (body) h["Content-Type"] = "application/json";
   if (secret) h.Authorization = `Bearer ${secret}`;
 
-  const budget = timeoutMs ?? (method === "GET" ? 12000 : 18000);
+  // Keep individual network calls short so the whole cycle can finish and persist
+  // before the outer 120-second GitHub Actions safety limit.
+  const budget = timeoutMs ?? (method === "GET" ? 6000 : 8000);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), budget);
   const started = Date.now();
