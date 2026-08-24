@@ -15,10 +15,6 @@ on:
         type: string
   schedule:
     - cron: "7,37 * * * *"
-  push:
-    branches: [main]
-    paths:
-      - "docs/launcher-config.js"
 
 permissions:
   contents: write
