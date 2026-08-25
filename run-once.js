@@ -135,13 +135,22 @@ globalThis.fetch = async function nomadFetch(input, init = {}) {
   try { body = JSON.parse(init.body); }
   catch { return nativeFetch(input, init); }
 
+  // This budget covers ALL attempts inside attemptModel — the 429 retries' own
+  // backoff sleeps included, not just the final successful generation. Verified
+  // failure (2026-08-25, run 32873512396, deep mission): two 429s + backoff ate
+  // 26s, the model then answered (first_byte received) but needed longer than the
+  // remaining ~124s to finish streaming a full 10-candidate + mission_report deep
+  // answer, so the 150s budget aborted it mid-stream. The dashboard already
+  // advertises deep missions as "up to 10 minutes" (bash ceiling is 600s), so give
+  // deep runs a budget that matches that promise instead of cutting them off at
+  // a quarter of it.
   console.log(`[router] primary -> ${PRIMARY_MODEL} (${isDeepRun ? "deep" : "regular"})`);
   const primary = await attemptModel(
     input,
     init,
     body,
     PRIMARY_MODEL,
-    isDeepRun ? 150000 : 65000,
+    isDeepRun ? 480000 : 90000,
     isDeepRun ? "low" : "minimal",
     // Regular agent.js still carries an outer safety-net AbortController. Do not
     // let that pre-empt Ox Alpha before the router's own budget expires.
@@ -150,9 +159,10 @@ globalThis.fetch = async function nomadFetch(input, init = {}) {
   if (primary?.response) return primary.response;
 
   // Keep this budget small: the workflow's own bash `timeout 120s` wraps the whole
-  // regular cycle, and the primary Ox Alpha attempt above already spends up to 65s.
-  // Only configure one or two fallback models, and keep OPENAI_FALLBACK_MODELS
-  // short, or the total (primary + fallbacks) can exceed the outer ceilings.
+  // regular cycle (600s for deep), and the primary Ox Alpha attempt above already
+  // spends up to 90s regular / 480s deep. Configure at most ONE fallback model in
+  // OPENAI_FALLBACK_MODELS, or the total (primary + fallbacks) risks exceeding the
+  // outer ceilings — see the matching budget math in src/agent.js's llm().
   for (const model of FALLBACK_MODELS) {
     console.warn(`[router] Ox Alpha unavailable; fallback -> ${model} (visible fallback, not silent)`);
     const fallback = await attemptModel(input, init, body, model, 20000, "minimal", true);

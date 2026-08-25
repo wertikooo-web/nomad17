@@ -28,12 +28,15 @@ async function llm(messages, { deep = false } = {}) {
   // above the router's own worst-case total so it should, in normal operation,
   // never fire first. If it does fire, that fact is reported honestly below
   // instead of being conflated with the router's own (more specific) errors.
-  // Worst case for a regular run is primary (65s) + up to two 20s fallback
-  // attempts = 105s; this must stay comfortably under both this number and the
-  // workflow's outer `timeout 120s`, so keep this above that worst case but below
-  // 120s. Deep runs live inside a 600s bash ceiling, so more headroom is fine.
+  // Worst case for a regular run is primary (90s) + one 20s fallback attempt =
+  // 110s. Only configure ONE fallback model in OPENAI_FALLBACK_MODELS for regular
+  // cycles — two would risk exceeding the workflow's outer `timeout 120s`, which
+  // is a hard OS-level kill this in-process switch cannot prevent. This number is
+  // set just under that 120s ceiling so the process gets a chance to log an honest
+  // error before bash would SIGKILL it anyway. Deep runs: primary (480s) + one 20s
+  // fallback = 500s, comfortably inside the 600s bash ceiling for deep missions.
   const controller = new AbortController();
-  const outerBudgetMs = deep ? 320000 : 112000;
+  const outerBudgetMs = deep ? 560000 : 115000;
   let outerTimedOut = false;
   const timer = setTimeout(() => { outerTimedOut = true; controller.abort(); }, outerBudgetMs);
   const started = Date.now();
