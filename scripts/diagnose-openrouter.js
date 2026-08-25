@@ -268,6 +268,30 @@ async function main() {
     console.log(`[diag:G_real_content] setup failed: ${e?.stack || e}`);
   }
 
+  // --- Fallback candidate probe: quick, cheap, well-established JSON-mode models
+  // to consider for OPENAI_FALLBACK_MODELS. ---
+  const candidates = [
+    "openai/gpt-4o-mini",
+    "google/gemini-2.5-flash",
+    "anthropic/claude-3.5-haiku",
+  ];
+  for (const model of candidates) {
+    const t0 = Date.now();
+    try {
+      const res = await fetch(`${base}/chat/completions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+        body: JSON.stringify({ model, temperature: 0.2, max_tokens: 50, response_format: { type: "json_object" }, messages: [{ role: "user", content: 'Return strict JSON: {"answer":"ok"}' }] }),
+      });
+      const raw = await res.text();
+      let env; try { env = JSON.parse(raw); } catch { env = null; }
+      const content = env?.choices?.[0]?.message?.content;
+      console.log(`[diag:fallback_probe:${model}] status=${res.status} elapsed=${Date.now() - t0}ms content=${JSON.stringify(content)} error=${env?.error ? JSON.stringify(env.error).slice(0, 300) : "none"}`);
+    } catch (e) {
+      console.log(`[diag:fallback_probe:${model}] EXCEPTION elapsed=${Date.now() - t0}ms message=${e?.message || e}`);
+    }
+  }
+
   console.log("[diag] all scenarios complete");
 }
 
