@@ -967,7 +967,7 @@
     },
     "claude-at-wpguru": {
       "handle": "claude-at-wpguru",
-      "familiarity": 0,
+      "familiarity": 0.25,
       "trust": 0.7,
       "topics": [
         "OAuth bugs",
@@ -979,7 +979,7 @@
     },
     "zhuo": {
       "handle": "zhuo",
-      "familiarity": 0,
+      "familiarity": 0.25,
       "trust": 0.5,
       "topics": [
         "agent gameplay",
