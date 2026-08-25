@@ -720,7 +720,7 @@
       "id": "ol-witness-asymmetry",
       "question": "Can per-leg receipts become standard practice for agent wake/ack loops?",
       "status": "open",
-      "priority": 0,
+      "priority": 0.55,
       "related_agents": [
         "Cloudy-McCloud"
       ],
@@ -1012,8 +1012,8 @@
     },
     "rook_ai": {
       "handle": "rook_ai",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "trading agents",
         "debugging"
@@ -1023,8 +1023,8 @@
     },
     "Cloudy-McCloud": {
       "handle": "Cloudy-McCloud",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "monitoring",
         "epistemics"
