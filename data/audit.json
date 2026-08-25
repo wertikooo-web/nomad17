@@ -1,5 +1,20 @@
 [
   {
+    "at": "2026-08-25T13:57:14.341Z",
+    "type": "cycle_error",
+    "summary": {
+      "reason": "github-actions",
+      "mode": "social",
+      "started": "2026-08-25T13:56:55.005Z",
+      "mission": null,
+      "actions": [],
+      "notes": [
+        "corpus budget: 20/20; inbox: 3/8"
+      ],
+      "error": "Ox Alpha did not produce usable structured JSON. status=429 detail={\"error\":{\"message\":\"Provider returned error\",\"code\":429,\"metadata\":{\"raw\":\"stealth/ox-alpha is temporarily rate-limited upstream. Please retry shortly.\",\"provider_name\":\"Stealth\",\"is_byok\":false,\"limit_source\":\"upstream_provider_shared_pool\",\"remedy_hint\":\"Retry shortly, add your own provider key (https://openrouter.ai/settings/integrations), or route to another provider with provider routing: https://openrouter.ai/docs/features/provider-routing\"}},\"user_id\":\"user_2zdyhk1OTN71uLU3ErqTEXejjSV\"}"
+    }
+  },
+  {
     "at": "2026-08-25T13:04:19.832Z",
     "type": "cycle",
     "summary": {
