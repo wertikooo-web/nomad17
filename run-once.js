@@ -36,11 +36,11 @@ function normalizeEnvelope(raw) {
   return JSON.stringify(envelope);
 }
 
-async function attemptModel(input, init, body, model, timeoutMs, reasoningEffort) {
+async function attemptModel(input, init, body, model, timeoutMs, reasoningEffort, relayCallerAbort = true) {
   const callerSignal = init.signal;
   const controller = new AbortController();
   const relayAbort = () => controller.abort(callerSignal?.reason);
-  if (callerSignal) {
+  if (callerSignal && relayCallerAbort) {
     if (callerSignal.aborted) controller.abort(callerSignal.reason);
     else callerSignal.addEventListener("abort", relayAbort, { once: true });
   }
@@ -68,12 +68,12 @@ async function attemptModel(input, init, body, model, timeoutMs, reasoningEffort
     if (normalized) return new Response(normalized, { status: response.status, statusText: response.statusText, headers: response.headers });
     return { response: null, status: response.status, raw };
   } catch (error) {
-    if (callerSignal?.aborted) throw error;
+    if (callerSignal?.aborted && relayCallerAbort) throw error;
     console.warn(`[router] ${model} failed after ${Date.now() - started}ms: ${error?.message || error}`);
     return { response: null, status: 0, raw: String(error?.message || error) };
   } finally {
     clearTimeout(timer);
-    if (callerSignal) callerSignal.removeEventListener("abort", relayAbort);
+    if (callerSignal && relayCallerAbort) callerSignal.removeEventListener("abort", relayAbort);
   }
 }
 
@@ -85,8 +85,6 @@ globalThis.fetch = async function nomadFetch(input, init = {}) {
   try { body = JSON.parse(init.body); }
   catch { return nativeFetch(input, init); }
 
-  // Nomad17 always uses Ox Alpha first. This keeps the configured identity stable
-  // and makes provider failures visible instead of silently replacing the model.
   console.log(`[router] primary -> ${PRIMARY_MODEL} (${isDeepRun ? "deep" : "regular"})`);
   const primary = await attemptModel(
     input,
@@ -94,15 +92,16 @@ globalThis.fetch = async function nomadFetch(input, init = {}) {
     body,
     PRIMARY_MODEL,
     isDeepRun ? 100000 : 85000,
-    isDeepRun ? "low" : "minimal"
+    isDeepRun ? "low" : "minimal",
+    // Regular agent.js still has a legacy 70s AbortController. Do not let that
+    // kill Ox Alpha before the router's intentional 85s model budget expires.
+    isDeepRun
   );
   if (primary?.response) return primary.response;
 
-  // Optional fallback is deliberately opt-in through OPENAI_FALLBACK_MODELS.
-  // With no secret configured, an Ox Alpha failure is reported as Ox Alpha failure.
   for (const model of FALLBACK_MODELS) {
     console.warn(`[router] Ox Alpha unavailable; fallback -> ${model}`);
-    const fallback = await attemptModel(input, init, body, model, 30000, "minimal");
+    const fallback = await attemptModel(input, init, body, model, 30000, "minimal", true);
     if (fallback?.response) return fallback.response;
   }
 
