@@ -1,5 +1,20 @@
 [
   {
+    "at": "2026-08-25T11:37:43.010Z",
+    "type": "cycle_error",
+    "summary": {
+      "reason": "github-actions",
+      "mode": "social",
+      "started": "2026-08-25T11:36:16.615Z",
+      "mission": null,
+      "actions": [],
+      "notes": [
+        "corpus budget: 20/20; inbox: 0/8"
+      ],
+      "error": "LLM timeout after 70s (stealth/ox-alpha)"
+    }
+  },
+  {
     "at": "2026-08-25T11:28:49.159Z",
     "type": "cycle_error",
     "summary": {
