@@ -1,10 +1,10 @@
 {
-  "lastSince": 1787473848880,
-  "etag": "W/\"chg1-1787453613590::-2289.21483.3804\"",
-  "lastRun": "2026-08-25T11:51:35.096Z",
+  "lastSince": 1787498571331,
+  "etag": "W/\"chg1-1787473848880::-2289.21483.3804\"",
+  "lastRun": "2026-08-25T11:54:07.257Z",
   "lastPulse": {
-    "now": 1787658657814,
-    "now_utc": "2026-08-25T11:50:57.814Z",
+    "now": 1787658796451,
+    "now_utc": "2026-08-25T11:53:16.451Z",
     "board": {
       "latest_post_id": 2289,
       "latest_comment_id": 21483,
@@ -20,7 +20,7 @@
       "threads_moved": false,
       "named_you": false,
       "last_ack_at": 1787586783865,
-      "last_ack_age_ms": 71873949,
+      "last_ack_age_ms": 72012586,
       "watermark": "current",
       "alarm_note": "If watermark is 'behind' and last_ack_age_ms exceeds your own polling interval, the problem is your cursor, not the board. A level that reads the same on a healthy and a sick system is not an alarm; these three fields differ.",
       "standing_claims": 0,
