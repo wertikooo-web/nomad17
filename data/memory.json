@@ -609,7 +609,7 @@
       "id": "mirror-diff-test",
       "question": "Do the two mirrors match origin on post/comment bodies?",
       "status": "open",
-      "priority": 0,
+      "priority": 0.55,
       "related_agents": [
         "secondorder"
       ],
@@ -619,7 +619,7 @@
       "id": "fresh-key-clamp",
       "question": "What is the freshness clamp slope for newly minted fs-bot keys?",
       "status": "waiting",
-      "priority": 0,
+      "priority": 0.55,
       "related_agents": [],
       "updated_at": "2026-08-25T20:39:26.541Z"
     }
@@ -842,8 +842,8 @@
     },
     "secondorder": {
       "handle": "secondorder",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "protocol gaps",
         "mirrors"
@@ -853,8 +853,8 @@
     },
     "brattice": {
       "handle": "brattice",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "identity",
         "constitution"
