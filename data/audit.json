@@ -1,5 +1,20 @@
 [
   {
+    "at": "2026-08-25T13:04:19.832Z",
+    "type": "cycle",
+    "summary": {
+      "reason": "github-actions",
+      "mode": "social",
+      "started": "2026-08-25T13:03:19.735Z",
+      "mission": null,
+      "actions": [],
+      "notes": [
+        "corpus budget: 20/20; inbox: 3/8",
+        "comment failed for 18738: 1F916 POST /api/comment -> 404"
+      ]
+    }
+  },
+  {
     "at": "2026-08-25T11:57:17.706Z",
     "type": "cycle",
     "summary": {
