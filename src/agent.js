@@ -96,9 +96,19 @@ function collectInbox(value, out = [], depth = 0) {
   return out;
 }
 function uniq(items) { const seen = new Set(); return items.filter(x => { const key = `${x.type}:${x.id}:${x.post_id}:${x.source_text}`; if (seen.has(key)) return false; seen.add(key); return true; }); }
-function translated(list, item, key) { const found = Array.isArray(list) ? list.find(x => sameId(item, x)) : null; return String(found?.[key] || "").slice(0, 4000); }
+function translated(list, item, key) { const found = Array.isArray(list) ? list.find(x => sameId(item, x)) : null; return flattenRu(found?.[key] || "").slice(0, 4000); }
 function simpleList(source, key, fallback) { return Array.isArray(source?.[key]) ? source[key].slice(0, 5) : (fallback || []).slice(0, 5); }
 function cleanText(value) { if (typeof value === "string") return value; if (value && typeof value === "object") return String(value.text || value.claim || value.question || value.lesson || value.topic || JSON.stringify(value)); return String(value ?? ""); }
+// The model is asked for a single labeled string (e.g. "Что произошло: ... Почему
+// это интересно: ..."), but sometimes returns a nested object with those labels as
+// keys instead. Rendering that with String() produces the literal text
+// "[object Object]" on the dashboard. Flatten it into readable text instead.
+function flattenRu(value) {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return value.map(flattenRu).filter(Boolean).join(" ");
+  if (value && typeof value === "object") return Object.entries(value).map(([k, v]) => `${k}: ${flattenRu(v)}`).join(" ");
+  return String(value ?? "");
+}
 function clamp(value, min, max) { return Math.max(min, Math.min(max, Number(value) || 0)); }
 
 function applySocialMemory(memory, update, now) {
@@ -154,9 +164,14 @@ export async function runCycle({ reason = "manual" } = {}) {
     // trimming the Russian schema is the actual fix, not a bigger timeout.
     const maxCandidates = deep ? 10 : 2;
     const socialRule = `You are Nomad17, a continuing field researcher with social history. Durable memory contains INTERESTS, RELATIONSHIPS and OPEN_LOOPS. Prefer continuity when evidence advances an old question. Do not reply merely to be social. Silence is valid. Keep some serendipity. Return social_memory_update {interests:[{topic,strength,why}],open_loops:[{id?,question,status:"open"|"waiting"|"resolved",priority,related_agents:[]}],relationships:[{handle,familiarity,trust,topics:[],notes}],curiosity_event}. Also return selection_notes_simple_ru in 1-3 clear Russian sentences.`;
+    // "simple_ru MUST be one plain string" is stated explicitly and repeated,
+    // because earlier wording ("simple_ru MUST contain N labeled parts") led the
+    // model to sometimes return a nested {label: text} JSON object instead of a
+    // single string with those labels inline — which rendered as the literal
+    // text "[object Object]" on the dashboard.
     const plainRussianRule = deep
-      ? `The SIMPLE Russian view is written for a curious non-technical human. For every selected item, simple_ru MUST contain four short labeled parts in this exact order: "Что произошло:", "Почему мне стало интересно:", "Что это значит:", "Зачем это может пригодиться:". Explain concrete events first, then meaning. Decode blockchain, AI, governance, finance and platform jargon in ordinary Russian. Avoid calques and bureaucratic phrases such as "он-чейн чек", "финансовые потоки", "примитив", "казённый адрес", "агентная экосистема" unless you immediately explain them in everyday words. Do not merely translate the source. reason_simple_ru must be one natural sentence answering why Nomad17 personally noticed it. topic_ru must sound like a human headline, not a taxonomy label. The Russian text should be understandable without reading the English original.`
-      : `The SIMPLE Russian view is written for a curious non-technical human. For every selected item, simple_ru MUST contain two short labeled parts in this exact order: "Что произошло:", "Почему это интересно:". Keep each part to one short sentence. Decode blockchain, AI, governance, finance and platform jargon in ordinary Russian instead of calquing it. Do not merely translate the source. topic_ru must sound like a human headline, not a taxonomy label. Be concise — this is a quick wake-up cycle, not a deep report.`;
+      ? `The SIMPLE Russian view is written for a curious non-technical human. simple_ru MUST be one plain string (never a JSON object). For every selected item, that string must contain four short labeled parts in this exact order, concatenated as plain text: "Что произошло:", "Почему мне стало интересно:", "Что это значит:", "Зачем это может пригодиться:". Explain concrete events first, then meaning. Decode blockchain, AI, governance, finance and platform jargon in ordinary Russian. Avoid calques and bureaucratic phrases such as "он-чейн чек", "финансовые потоки", "примитив", "казённый адрес", "агентная экосистема" unless you immediately explain them in everyday words. Do not merely translate the source. reason_simple_ru must be one plain-string natural sentence answering why Nomad17 personally noticed it. topic_ru must be a plain string, a human headline, not a taxonomy label. The Russian text should be understandable without reading the English original.`
+      : `The SIMPLE Russian view is written for a curious non-technical human. simple_ru MUST be one plain string (never a JSON object). For every selected item, that string must contain two short labeled parts in this exact order, concatenated as plain text: "Что произошло:", "Почему это интересно:". Keep each part to one short sentence. Decode blockchain, AI, governance, finance and platform jargon in ordinary Russian instead of calquing it. Do not merely translate the source. topic_ru must be a plain string, a human headline, not a taxonomy label. Be concise — this is a quick wake-up cycle, not a deep report.`;
     const researchRule = deep ? `Mission: ${mission}. Do evidence-based field research. Use multiple authors/threads, separate observation from inference, seek disagreement, never invent consensus. Return mission_report {mission,status:"complete"|"partial",answer_simple_ru,key_findings:[{claim,evidence_ids:[id],confidence}],counterpoints:[{point,evidence_ids:[id]}],evidence:[{id,post_id?,author,quote_or_paraphrase}],what_is_uncertain:[],next_questions:[],quality:{distinct_sources,distinct_agents,confidence}}.` : "";
     const candidateFields = deep
       ? `{id,post_id?,type,score,topic_ru,reason,reason_simple_ru,ru_translation,simple_ru,proposed_action:"none"|"vote"|"tag"|"comment",tag?,comment?,comment_ru?,comment_simple_ru?}`
@@ -165,12 +180,16 @@ export async function runCycle({ reason = "manual" } = {}) {
     console.log(`[stage] prompt build: mode=${state.mode} deep=${deep} candidates<=${maxCandidates} pool=${pool.length} incoming=${incoming.length}`);
     const decision = await llm([
       { role: "system", content: SYSTEM_POLICY },
-      { role: "system", content: `Current mode: ${state.mode}. Return strict JSON. ${socialRule} ${plainRussianRule} ${researchRule} ru_translation must be fluent Russian and preserve factual detail.` },
+      { role: "system", content: `Current mode: ${state.mode}. Return strict JSON. ${socialRule} ${plainRussianRule} ${researchRule} ru_translation must be one plain string (never a JSON object), fluent Russian, preserving factual detail.` },
       { role: "user", content: `DURABLE MEMORY:\n${compact(memory, deep ? 11000 : 4500)}\nINBOX:\n${compact(incoming, deep ? 8000 : 3000)}\nPUBLIC CORPUS:\n${compact(pool, deep ? 24000 : 8000)}\nChoose at most ${maxCandidates} useful candidates (fewer is fine, silence is valid). Return candidates [${candidateFields}], inbox_translations [{id,post_id?,type,topic_ru,ru_translation,simple_ru}], ${memoryUpdateFields}daily_takeaways [{kind:"idea"|"strange"|"conversation",title,text,evidence_ids:[id]}], social_memory_update, selection_notes_simple_ru. ${deep ? "Also mission_report." : ""}` },
     ], { deep });
 
     const picks = Array.isArray(decision.candidates) ? decision.candidates.slice(0, maxCandidates) : [];
-    const reads = picks.map(pick => { const raw = pool.find(x => sameId(x, pick)) || incoming.find(x => sameId(x, pick)) || {}; const view = sourceView(raw); return { ...view, id: pick.id ?? view.id, type: pick.type || view.type, topic_ru: String(pick.topic_ru || "").slice(0, 100), ru_translation: String(pick.ru_translation || "").slice(0, 4000), simple_ru: String(pick.simple_ru || "").slice(0, 4000), reason: String(pick.reason || "").slice(0, 1000), reason_simple_ru: String(pick.reason_simple_ru || "").slice(0, 1200) }; });
+    // pool/incoming entries are already sourceView()-shaped (source_text, not
+    // body/text/content), so re-running sourceView() on them here used to look
+    // for the wrong field names and silently wipe source_text — that was the
+    // "Original" tab showing blank source text on the dashboard.
+    const reads = picks.map(pick => { const raw = pool.find(x => sameId(x, pick)) || incoming.find(x => sameId(x, pick)) || {}; return { ...raw, id: pick.id ?? raw.id, type: pick.type || raw.type, topic_ru: flattenRu(pick.topic_ru || "").slice(0, 100), ru_translation: flattenRu(pick.ru_translation || "").slice(0, 4000), simple_ru: flattenRu(pick.simple_ru || "").slice(0, 4000), reason: flattenRu(pick.reason || "").slice(0, 1000), reason_simple_ru: flattenRu(pick.reason_simple_ru || "").slice(0, 1200) }; });
     const counts = { comment: 0, vote: 0, tag: 0, post: 0 }, conversations = [], inboxTranslations = decision.inbox_translations || [];
     for (const item of incoming) conversations.push({ direction: "in", ...item, topic_ru: translated(inboxTranslations, item, "topic_ru").slice(0, 100), ru_translation: translated(inboxTranslations, item, "ru_translation"), simple_ru: translated(inboxTranslations, item, "simple_ru") });
     for (const pick of picks) {
@@ -182,7 +201,7 @@ export async function runCycle({ reason = "manual" } = {}) {
         else if (action === "comment" && pick.comment && counts.comment < 2) {
           const postId = Number(pick.post_id || pick.id), text = String(pick.comment).slice(0, 1600), result = await f916.comment(secret, postId, text, null); counts.comment++;
           summary.actions.push({ action, id: postId, reason: pick.reason, text });
-          conversations.push({ direction: "out", type: "comment", id: result?.id ?? result?.comment_id ?? null, post_id: postId, author: "nomad17", topic_ru: String(pick.topic_ru || "").slice(0, 100), source_text: text, ru_translation: String(pick.comment_ru || "").slice(0, 3000), simple_ru: String(pick.comment_simple_ru || pick.comment_ru || "").slice(0, 3000) });
+          conversations.push({ direction: "out", type: "comment", id: result?.id ?? result?.comment_id ?? null, post_id: postId, author: "nomad17", topic_ru: flattenRu(pick.topic_ru || "").slice(0, 100), source_text: text, ru_translation: flattenRu(pick.comment_ru || "").slice(0, 3000), simple_ru: flattenRu(pick.comment_simple_ru || pick.comment_ru || "").slice(0, 3000) });
         }
       } catch (e) { summary.notes.push(`${action} failed for ${pick.id}: ${e.message}`); }
     }
