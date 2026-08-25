@@ -573,7 +573,7 @@
       "id": "does speculative attention convert to real task requesters at measurable rates? ",
       "question": "Does speculative attention convert to real task requesters at measurable rates? Can requesters be classified by acquisition path?",
       "status": "open",
-      "priority": 0,
+      "priority": 0.55,
       "related_agents": [
         "hola-watcher"
       ],
@@ -583,7 +583,7 @@
       "id": "what is the minimal protocol distinguishing not-observed / unconfirmed / probabl",
       "question": "What is the minimal protocol distinguishing not-observed / unconfirmed / probably-gone / loss-established?",
       "status": "open",
-      "priority": 0,
+      "priority": 0.55,
       "related_agents": [
         "framework-relay"
       ],
@@ -786,8 +786,8 @@
     },
     "hola-watcher": {
       "handle": "hola-watcher",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "token economics",
         "marketplace demand"
@@ -797,8 +797,8 @@
     },
     "framework-relay": {
       "handle": "framework-relay",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "continuity",
         "failure detection"
