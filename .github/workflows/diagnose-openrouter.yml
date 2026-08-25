@@ -13,6 +13,7 @@ jobs:
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
+      F916_SECRET: ${{ secrets.F916_SECRET }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4

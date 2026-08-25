@@ -3,6 +3,8 @@
 // time-to-first-token separately from total completion time. Never logs the API key.
 // Run manually: gh workflow run diagnose-openrouter.yml
 import { SYSTEM_POLICY } from "../src/policy.js";
+import * as f916 from "../src/f916.js";
+import fs from "node:fs/promises";
 
 const key = process.env.OPENAI_API_KEY;
 const base = (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/$/, "");
@@ -197,6 +199,74 @@ async function main() {
     max_tokens: 50,
     budgetMs: 60000,
   });
+
+  // --- Scenario G: rebuild the EXACT real production prompt (live 1F916 data +
+  // real committed memory.json) to see whether real content, not just size, is
+  // what makes generation slow. ---
+  function compact(value, max = 12000) {
+    const s = JSON.stringify(value);
+    return s.length > max ? s.slice(0, max) + "…[truncated]" : s;
+  }
+  function firstText(obj, keys) { for (const key of keys) if (typeof obj?.[key] === "string" && obj[key].trim()) return obj[key].trim(); return ""; }
+  function sourceView(item = {}) {
+    const id = item.id ?? item.post_id ?? item.comment_id ?? null;
+    const type = item.type || (item.comment_id ? "comment" : "post");
+    const title = firstText(item, ["title", "subject", "name"]) || (id ? `1F916 ${type} #${id}` : "1F916 item");
+    const author = firstText(item, ["handle", "author_handle", "author", "user", "agent"]);
+    const source_text = firstText(item, ["body", "text", "content", "message", "summary"]).slice(0, 4000);
+    const post_id = item.post_id || (type === "post" ? id : null);
+    return { id, type, title, author, source_text, post_id, url: post_id ? `https://1f916.ai/api/post/${post_id}` : null };
+  }
+  function candidatesFromChanges(data) {
+    if (!data) return [];
+    const out = [];
+    for (const key of ["posts", "comments", "changes", "items", "events"]) if (Array.isArray(data[key])) out.push(...data[key]);
+    return out.slice(0, 100);
+  }
+  function uniq(items) { const seen = new Set(); return items.filter(x => { const key = `${x.type}:${x.id}:${x.post_id}:${x.source_text}`; if (seen.has(key)) return false; seen.add(key); return true; }); }
+  function collectInbox(value, out = [], depth = 0) {
+    if (depth > 5 || value == null) return out;
+    if (Array.isArray(value)) { for (const x of value) collectInbox(x, out, depth + 1); return out; }
+    if (typeof value !== "object") return out;
+    const text = firstText(value, ["body", "text", "content", "message"]);
+    if (text && (value.id != null || value.comment_id != null || value.post_id != null)) out.push(sourceView(value));
+    for (const [key, x] of Object.entries(value)) if (!["secret", "token", "key", "credential"].includes(key.toLowerCase())) collectInbox(x, out, depth + 1);
+    return out;
+  }
+
+  try {
+    const secret = process.env.F916_SECRET || null;
+    const memory = JSON.parse(await fs.readFile(new URL("../data/memory.json", import.meta.url), "utf8").catch(() => "{}"));
+    const state = JSON.parse(await fs.readFile(new URL("../data/state.json", import.meta.url), "utf8").catch(() => "{}"));
+
+    const pulse = await f916.pulse(secret || undefined);
+    let changeData = null;
+    try { const ch = await f916.changes(state.lastSince || 0, state.etag || null); if (ch.status !== 304) changeData = ch.data; } catch {}
+    let inbox = null; if (secret) try { inbox = await f916.me(secret, state.lastSince || 0); } catch {}
+    const incoming = uniq(collectInbox(inbox)).slice(0, 8);
+    let pool = candidatesFromChanges(changeData);
+    try { const front = await f916.front(); if (Array.isArray(front)) pool.push(...front); else if (Array.isArray(front?.posts)) pool.push(...front.posts); } catch {}
+    pool = uniq(pool.map(sourceView)).slice(0, 20);
+    console.log(`[diag:G_real_content] live corpus: pool=${pool.length} inbox=${incoming.length} pulse_citizens=${pulse?.board?.citizens ?? "?"}`);
+
+    const socialRule = `You are Nomad17, a continuing field researcher with social history. Durable memory contains INTERESTS, RELATIONSHIPS and OPEN_LOOPS. Prefer continuity when evidence advances an old question. Do not reply merely to be social. Silence is valid. Keep some serendipity. Return social_memory_update {interests:[{topic,strength,why}],open_loops:[{id?,question,status:"open"|"waiting"|"resolved",priority,related_agents:[]}],relationships:[{handle,familiarity,trust,topics:[],notes}],curiosity_event}. Also return selection_notes_simple_ru in 1-3 clear Russian sentences.`;
+    const plainRussianRule = `The SIMPLE Russian view is written for a curious non-technical human. For every selected item, simple_ru MUST contain four short labeled parts in this exact order: "Что произошло:", "Почему мне стало интересно:", "Что это значит:", "Зачем это может пригодиться:". Explain concrete events first, then meaning. Decode blockchain, AI, governance, finance and platform jargon in ordinary Russian. Avoid calques and bureaucratic phrases such as "он-чейн чек", "финансовые потоки", "примитив", "казённый адрес", "агентная экосистема" unless you immediately explain them in everyday words. Do not merely translate the source. reason_simple_ru must be one natural sentence answering why Nomad17 personally noticed it. topic_ru must sound like a human headline, not a taxonomy label. The Russian text should be understandable without reading the English original.`;
+    const realLiveMessages = [
+      { role: "system", content: SYSTEM_POLICY },
+      { role: "system", content: `Current mode: social. Return strict JSON. ${socialRule} ${plainRussianRule} ru_translation must be fluent Russian and preserve factual detail.` },
+      { role: "user", content: `DURABLE MEMORY:\n${compact(memory, 4500)}\nINBOX:\n${compact(incoming, 3000)}\nPUBLIC CORPUS:\n${compact(pool, 8000)}\nChoose at most 4 useful candidates. Return candidates [{id,post_id?,type,score,topic_ru,reason,reason_simple_ru,ru_translation,simple_ru,proposed_action:"none"|"vote"|"tag"|"comment",tag?,comment?,comment_ru?,comment_simple_ru?}], inbox_translations [{id,post_id?,type,topic_ru,ru_translation,simple_ru}], memory_update {observations:[],hypotheses:[],questions:[],lessons:[]}, memory_update_simple with same keys, daily_takeaways [{kind:"idea"|"strange"|"conversation",title,text,evidence_ids:[id]}], social_memory_update, selection_notes_simple_ru.` },
+    ];
+
+    await runScenario("G_real_content_stream", {
+      messages: realLiveMessages,
+      response_format: { type: "json_object" },
+      reasoning: { effort: "minimal", exclude: true },
+      max_tokens: 6000,
+      budgetMs: 170000,
+    });
+  } catch (e) {
+    console.log(`[diag:G_real_content] setup failed: ${e?.stack || e}`);
+  }
 
   console.log("[diag] all scenarios complete");
 }
