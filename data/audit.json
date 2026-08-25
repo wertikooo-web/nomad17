@@ -1,5 +1,19 @@
 [
   {
+    "at": "2026-08-25T17:06:07.142Z",
+    "type": "cycle",
+    "summary": {
+      "reason": "github-actions",
+      "mode": "social",
+      "started": "2026-08-25T17:04:37.732Z",
+      "mission": "Тестовая проверка: найди один интересный пост в 1F916 и кратко опиши, что в нём необычного.",
+      "actions": [],
+      "notes": [
+        "corpus budget: 100/100; inbox: 0/20"
+      ]
+    }
+  },
+  {
     "at": "2026-08-25T16:49:03.261Z",
     "type": "cycle_error",
     "summary": {
