@@ -15,15 +15,27 @@ for(const x of memory.interests||[]) x.strength=sensible(x.strength,.55);
 for(const x of memory.open_loops||[]) x.priority=sensible(x.priority,.55);
 for(const x of Object.values(memory.relationships||{})){x.familiarity=sensible(x.familiarity,.25);x.trust=sensible(x.trust,.5)}
 
+// This script used to re-translate EVERY item in ALL cached cycles (up to 120)
+// on every single run, which made it take 15+ minutes and hit the workflow's
+// own timeout-minutes ceiling every time (confirmed: run 32876237060 got
+// cancelled at exactly 15:00 still on the first "translate" step). Only queue
+// items that are actually missing a translation or visibly broken
+// ("[object Object]", the nested-object-coerced-to-string bug) — already-good
+// Russian text (detected by the presence of Cyrillic) is left alone.
+const hasCyrillic = s => /[а-яё]/i.test(String(s||''));
+const isBroken = s => String(s||'').trim()==='[object Object]';
+const needsFix = (...vals) => vals.some(v => isBroken(v)) || !vals.every(v => hasCyrillic(v));
+
 const items=[];
 for(const cycle of journal.cycles||[]){
-  for(const r of cycle.reads||[]) if(r.source_text) items.push({kind:'read',ref:r,source:r.source_text,reason:r.reason||''});
-  for(const m of cycle.conversations||[]) if(m.source_text) items.push({kind:'message',ref:m,source:m.source_text});
-  if(cycle.selection_notes_simple_ru) items.push({kind:'selection',ref:cycle,source:cycle.selection_notes_simple_ru});
-  for(const x of cycle.interests_snapshot||[]) items.push({kind:'interest',ref:x,source:`topic: ${x.topic||''}\nwhy: ${x.why||''}`});
-  for(const x of cycle.open_loops_snapshot||[]) items.push({kind:'loop',ref:x,source:x.question||''});
-  for(const x of cycle.relationships_snapshot||[]) items.push({kind:'relationship',ref:x,source:`notes: ${x.notes||''}\ntopics: ${(x.topics||[]).join(', ')}`});
+  for(const r of cycle.reads||[]) if(r.source_text && needsFix(r.ru_translation, r.simple_ru)) items.push({kind:'read',ref:r,source:r.source_text,reason:r.reason||''});
+  for(const m of cycle.conversations||[]) if(m.source_text && needsFix(m.ru_translation, m.simple_ru)) items.push({kind:'message',ref:m,source:m.source_text});
+  if(cycle.selection_notes_simple_ru && needsFix(cycle.selection_notes_simple_ru)) items.push({kind:'selection',ref:cycle,source:cycle.selection_notes_simple_ru});
+  for(const x of cycle.interests_snapshot||[]) if(needsFix(x.why_ru||x.why)) items.push({kind:'interest',ref:x,source:`topic: ${x.topic||''}\nwhy: ${x.why||''}`});
+  for(const x of cycle.open_loops_snapshot||[]) if(needsFix(x.question_ru||x.question)) items.push({kind:'loop',ref:x,source:x.question||''});
+  for(const x of cycle.relationships_snapshot||[]) if(needsFix(x.notes_ru||x.notes)) items.push({kind:'relationship',ref:x,source:`notes: ${x.notes||''}\ntopics: ${(x.topics||[]).join(', ')}`});
 }
+console.log(`[backfill] ${items.length} items need translation (skipped already-good ones)`);
 
 // The translator model occasionally emits a literal, unescaped control character
 // (usually a raw newline) inside a JSON string value instead of writing "\n",
@@ -71,11 +83,23 @@ async function translate(batch){
   }
 }
 
-for(let i=0;i<items.length;i+=8){const batch=items.slice(i,i+8);let out;try{out=await translate(batch)}catch(e){console.warn(`[backfill] batch ${i}-${i+batch.length} failed, skipping: ${e.message}`);continue}for(const t of out){const x=batch[Number(t.i)];if(!x)continue;const r=x.ref;if(x.kind==='read'||x.kind==='message'){if(t.topic_ru)r.topic_ru=flattenRu(t.topic_ru);if(t.ru_translation)r.ru_translation=flattenRu(t.ru_translation);if(t.simple_ru)r.simple_ru=flattenRu(t.simple_ru);if(x.kind==='read'&&t.reason_simple_ru)r.reason_simple_ru=flattenRu(t.reason_simple_ru)}else if(x.kind==='selection'){r.selection_notes_simple_ru=flattenRu(t.simple_ru||t.ru_translation||x.source)}else if(x.kind==='interest'){const topic=flattenRu(t.topic_ru||r.topic||'');const why=flattenRu(t.simple_ru||t.ru_translation||r.why||'');r.topic=topic;r.why=why;r.topic_ru=topic;r.why_ru=why;r.strength=sensible(r.strength,.55)}else if(x.kind==='loop'){const q=flattenRu(t.simple_ru||t.ru_translation||r.question||'');r.question=q;r.question_ru=q;r.priority=sensible(r.priority,.55)}else if(x.kind==='relationship'){const notes=flattenRu(t.simple_ru||t.ru_translation||r.notes||'');r.notes=notes;r.notes_ru=notes;if(t.topic_ru)r.topics=[flattenRu(t.topic_ru)];r.familiarity=sensible(r.familiarity,.25);r.trust=sensible(r.trust,.5)}}}
+async function save(){
+  const latest=(journal.cycles||[])[0];
+  if(latest){for(const x of latest.interests_snapshot||[])x.strength=sensible(x.strength,.55);for(const x of latest.open_loops_snapshot||[])x.priority=sensible(x.priority,.55);for(const x of latest.relationships_snapshot||[]){x.familiarity=sensible(x.familiarity,.25);x.trust=sensible(x.trust,.5)}}
+  await fs.writeFile(journalFile,JSON.stringify(journal,null,2));
+  await fs.writeFile(memoryFile,JSON.stringify(memory,null,2));
+}
 
-const latest=(journal.cycles||[])[0];
-if(latest){for(const x of latest.interests_snapshot||[])x.strength=sensible(x.strength,.55);for(const x of latest.open_loops_snapshot||[])x.priority=sensible(x.priority,.55);for(const x of latest.relationships_snapshot||[]){x.familiarity=sensible(x.familiarity,.25);x.trust=sensible(x.trust,.5)}}
+// Save every few batches, not just at the very end: if a big first-time backlog
+// makes this script run long enough to hit the workflow's own timeout-minutes,
+// GitHub SIGKILLs the whole job and anything not yet written to disk is lost.
+// Incremental saves mean a timeout only loses the batch in flight, not the
+// entire run's progress.
+let done=0;
+for(let i=0;i<items.length;i+=8){const batch=items.slice(i,i+8);let out;try{out=await translate(batch)}catch(e){console.warn(`[backfill] batch ${i}-${i+batch.length} failed, skipping: ${e.message}`);continue}for(const t of out){const x=batch[Number(t.i)];if(!x)continue;const r=x.ref;if(x.kind==='read'||x.kind==='message'){if(t.topic_ru)r.topic_ru=flattenRu(t.topic_ru);if(t.ru_translation)r.ru_translation=flattenRu(t.ru_translation);if(t.simple_ru)r.simple_ru=flattenRu(t.simple_ru);if(x.kind==='read'&&t.reason_simple_ru)r.reason_simple_ru=flattenRu(t.reason_simple_ru)}else if(x.kind==='selection'){r.selection_notes_simple_ru=flattenRu(t.simple_ru||t.ru_translation||x.source)}else if(x.kind==='interest'){const topic=flattenRu(t.topic_ru||r.topic||'');const why=flattenRu(t.simple_ru||t.ru_translation||r.why||'');r.topic=topic;r.why=why;r.topic_ru=topic;r.why_ru=why;r.strength=sensible(r.strength,.55)}else if(x.kind==='loop'){const q=flattenRu(t.simple_ru||t.ru_translation||r.question||'');r.question=q;r.question_ru=q;r.priority=sensible(r.priority,.55)}else if(x.kind==='relationship'){const notes=flattenRu(t.simple_ru||t.ru_translation||r.notes||'');r.notes=notes;r.notes_ru=notes;if(t.topic_ru)r.topics=[flattenRu(t.topic_ru)];r.familiarity=sensible(r.familiarity,.25);r.trust=sensible(r.trust,.5)}}
+  done+=batch.length;
+  if(done%40<8) await save();
+}
 
-await fs.writeFile(journalFile,JSON.stringify(journal,null,2));
-await fs.writeFile(memoryFile,JSON.stringify(memory,null,2));
+await save();
 console.log(`done: ${items.length} journal records normalized and translated`);
