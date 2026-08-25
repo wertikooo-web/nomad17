@@ -1,8 +1,8 @@
 const nativeFetch = globalThis.fetch.bind(globalThis);
 
-const REGULAR_MODELS = (process.env.OPENAI_REGULAR_MODELS || "google/gemma-4-31b-it-20260402:free,google/gemma-4-26b-a4b-it:free,z-ai/glm-5.2:free")
+const PRIMARY_MODEL = "stealth/ox-alpha";
+const FALLBACK_MODELS = (process.env.OPENAI_FALLBACK_MODELS || "")
   .split(",").map(x => x.trim()).filter(Boolean);
-const DEEP_FALLBACK_MODEL = process.env.OPENAI_FALLBACK_MODEL || REGULAR_MODELS[0];
 const isDeepRun = process.env.NOMAD17_RESEARCH_DEPTH === "deep" && Boolean(String(process.env.NOMAD17_MISSION || "").trim());
 
 function parseJsonLoose(value) {
@@ -36,7 +36,7 @@ function normalizeEnvelope(raw) {
   return JSON.stringify(envelope);
 }
 
-async function attemptModel(input, init, body, model, timeoutMs) {
+async function attemptModel(input, init, body, model, timeoutMs, reasoningEffort) {
   const callerSignal = init.signal;
   const controller = new AbortController();
   const relayAbort = () => controller.abort(callerSignal?.reason);
@@ -47,25 +47,30 @@ async function attemptModel(input, init, body, model, timeoutMs) {
   const timer = setTimeout(() => controller.abort(new Error(`${model} budget exceeded`)), timeoutMs);
   const started = Date.now();
   try {
-    const requestBody = { ...body, model, temperature: 0.2, reasoning: { effort: "minimal", exclude: true } };
+    const requestBody = {
+      ...body,
+      model,
+      temperature: 0.2,
+      max_tokens: isDeepRun ? 9000 : 6000,
+      reasoning: { effort: reasoningEffort, exclude: true }
+    };
     const response = await nativeFetch(input, { ...init, signal: controller.signal, body: JSON.stringify(requestBody) });
     const raw = await response.text();
     const normalized = response.ok ? normalizeEnvelope(raw) : null;
     let detail = "";
-    if (!normalized && response.ok) {
-      try {
-        const env = JSON.parse(raw);
-        const msg = env?.choices?.[0]?.message;
-        detail = ` finish=${env?.choices?.[0]?.finish_reason ?? "?"} content_type=${Array.isArray(msg?.content) ? "array" : typeof msg?.content} content_len=${typeof msg?.content === "string" ? msg.content.length : 0} reasoning_len=${typeof msg?.reasoning === "string" ? msg.reasoning.length : 0}`;
-      } catch {}
-    }
+    try {
+      const env = raw ? JSON.parse(raw) : null;
+      const msg = env?.choices?.[0]?.message;
+      const apiError = env?.error?.message || env?.error?.code || "";
+      detail = ` finish=${env?.choices?.[0]?.finish_reason ?? "?"} content_len=${typeof msg?.content === "string" ? msg.content.length : 0} reasoning_len=${typeof msg?.reasoning === "string" ? msg.reasoning.length : 0}${apiError ? ` api_error=${String(apiError).slice(0,300)}` : ""}`;
+    } catch {}
     console.log(`[router] ${model} status=${response.status} bytes=${raw.length} normalized=${Boolean(normalized)} elapsed=${Date.now() - started}ms${detail}`);
     if (normalized) return new Response(normalized, { status: response.status, statusText: response.statusText, headers: response.headers });
-    return null;
+    return { response: null, status: response.status, raw };
   } catch (error) {
     if (callerSignal?.aborted) throw error;
     console.warn(`[router] ${model} failed after ${Date.now() - started}ms: ${error?.message || error}`);
-    return null;
+    return { response: null, status: 0, raw: String(error?.message || error) };
   } finally {
     clearTimeout(timer);
     if (callerSignal) callerSignal.removeEventListener("abort", relayAbort);
@@ -80,49 +85,35 @@ globalThis.fetch = async function nomadFetch(input, init = {}) {
   try { body = JSON.parse(init.body); }
   catch { return nativeFetch(input, init); }
 
-  if (String(body?.model || "") !== "stealth/ox-alpha") return nativeFetch(input, init);
+  // Nomad17 always uses Ox Alpha first. This keeps the configured identity stable
+  // and makes provider failures visible instead of silently replacing the model.
+  console.log(`[router] primary -> ${PRIMARY_MODEL} (${isDeepRun ? "deep" : "regular"})`);
+  const primary = await attemptModel(
+    input,
+    init,
+    body,
+    PRIMARY_MODEL,
+    isDeepRun ? 100000 : 85000,
+    isDeepRun ? "low" : "minimal"
+  );
+  if (primary?.response) return primary.response;
 
-  if (!isDeepRun) {
-    for (const model of REGULAR_MODELS) {
-      console.log(`[router] regular attempt -> ${model}`);
-      const response = await attemptModel(input, init, { ...body, max_tokens: 4000 }, model, 20000);
-      if (response) return response;
-    }
-    throw new Error(`No regular OpenRouter model produced usable structured JSON: ${REGULAR_MODELS.join(", ")}`);
+  // Optional fallback is deliberately opt-in through OPENAI_FALLBACK_MODELS.
+  // With no secret configured, an Ox Alpha failure is reported as Ox Alpha failure.
+  for (const model of FALLBACK_MODELS) {
+    console.warn(`[router] Ox Alpha unavailable; fallback -> ${model}`);
+    const fallback = await attemptModel(input, init, body, model, 30000, "minimal");
+    if (fallback?.response) return fallback.response;
   }
 
-  const callerSignal = init.signal;
-  const primaryController = new AbortController();
-  const relayAbort = () => primaryController.abort(callerSignal?.reason);
-  if (callerSignal) {
-    if (callerSignal.aborted) primaryController.abort(callerSignal.reason);
-    else callerSignal.addEventListener("abort", relayAbort, { once: true });
-  }
-  const timer = setTimeout(() => primaryController.abort(new Error("Ox Alpha deep budget exceeded")), 90000);
-  const started = Date.now();
-  try {
-    const primaryBody = { ...body, model: "stealth/ox-alpha", reasoning: { effort: "low", exclude: true }, max_tokens: 7000, temperature: 0.2 };
-    const response = await nativeFetch(input, { ...init, signal: primaryController.signal, body: JSON.stringify(primaryBody) });
-    const raw = await response.text();
-    const normalized = response.ok ? normalizeEnvelope(raw) : null;
-    console.log(`[router] deep Ox Alpha status=${response.status} bytes=${raw.length} normalized=${Boolean(normalized)} elapsed=${Date.now() - started}ms`);
-    if (normalized) return new Response(normalized, { status: response.status, statusText: response.statusText, headers: response.headers });
-  } catch (error) {
-    if (callerSignal?.aborted) throw error;
-    console.warn(`[router] deep Ox Alpha failed after ${Date.now() - started}ms: ${error?.message || error}`);
-  } finally {
-    clearTimeout(timer);
-    if (callerSignal) callerSignal.removeEventListener("abort", relayAbort);
-  }
-
-  const fallback = await attemptModel(input, init, { ...body, max_tokens: 5000 }, DEEP_FALLBACK_MODEL, 45000);
-  if (fallback) return fallback;
-  throw new Error(`Deep fallback ${DEEP_FALLBACK_MODEL} did not produce usable JSON`);
+  const status = primary?.status || "network/timeout";
+  const detail = String(primary?.raw || "").slice(0, 500);
+  throw new Error(`Ox Alpha did not produce usable structured JSON. status=${status}${detail ? ` detail=${detail}` : ""}`);
 };
 
 let exitCode = 0;
 try {
-  console.log(`[run-once] configured=${process.env.OPENAI_MODEL || "unset"} regular_chain=${REGULAR_MODELS.join(" -> ")} deep=${isDeepRun}`);
+  console.log(`[run-once] primary=${PRIMARY_MODEL} configured=${process.env.OPENAI_MODEL || "unset"} deep=${isDeepRun} fallback=${FALLBACK_MODELS.join(" -> ") || "disabled"}`);
   const { runCycle } = await import("./src/agent.js");
   const result = await runCycle({ reason: process.env.GITHUB_ACTIONS ? "github-actions" : "manual" });
   console.log(JSON.stringify(result, null, 2));
