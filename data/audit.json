@@ -1,5 +1,19 @@
 [
   {
+    "at": "2026-08-25T17:39:19.906Z",
+    "type": "cycle",
+    "summary": {
+      "reason": "github-actions",
+      "mode": "social",
+      "started": "2026-08-25T17:38:27.605Z",
+      "mission": null,
+      "actions": [],
+      "notes": [
+        "corpus budget: 20/20; inbox: 0/8"
+      ]
+    }
+  },
+  {
     "at": "2026-08-25T17:06:07.142Z",
     "type": "cycle",
     "summary": {
