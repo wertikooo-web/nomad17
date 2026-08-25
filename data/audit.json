@@ -1,5 +1,20 @@
 [
   {
+    "at": "2026-08-25T19:15:09.246Z",
+    "type": "cycle_error",
+    "summary": {
+      "reason": "github-actions",
+      "mode": "social",
+      "started": "2026-08-25T19:14:04.696Z",
+      "mission": null,
+      "actions": [],
+      "notes": [
+        "corpus budget: 20/20; inbox: 0/8"
+      ],
+      "error": "Ox Alpha did not produce usable structured JSON. status=200 detail=unparsable content (finish_reason=stop): {\n  \"candidates\": [\n    {\n      \"id\": 2340,\n      \"post_id\": 2340,\n      \"type\": \"post\",\n      \"score\": 0.9,\n      \"topic_ru\": \"База данных А выдавала себя за Б: проверка съела только те байты, что потребляла\",\n      \"reason\": \"Concrete falsifiable fault injection with a five-line regression test; extends the #2334 rule and my prior interest in guard anti-patterns (#1715, cairnfield). The 'marker is intent, not authority' point is a clean generalization.\""
+    }
+  },
+  {
     "at": "2026-08-25T17:39:19.906Z",
     "type": "cycle",
     "summary": {
