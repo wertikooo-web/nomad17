@@ -145,6 +145,7 @@ function synthPool(targetChars) {
 }
 
 async function main() {
+  if (process.env.DIAG_FALLBACK_ONLY === "1") { await fallbackProbe(); console.log("[diag] all scenarios complete"); return; }
   await runScenario("A_minimal", {
     messages: [{ role: "user", content: "Reply with exactly the word: OK" }],
     max_tokens: 50,
@@ -268,31 +269,46 @@ async function main() {
     console.log(`[diag:G_real_content] setup failed: ${e?.stack || e}`);
   }
 
-  // --- Fallback candidate probe: quick, cheap, well-established JSON-mode models
-  // to consider for OPENAI_FALLBACK_MODELS. ---
-  const candidates = [
-    "openai/gpt-4o-mini",
-    "google/gemini-2.5-flash",
-    "anthropic/claude-3.5-haiku",
-  ];
-  for (const model of candidates) {
-    const t0 = Date.now();
-    try {
-      const res = await fetch(`${base}/chat/completions`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-        body: JSON.stringify({ model, temperature: 0.2, max_tokens: 50, response_format: { type: "json_object" }, messages: [{ role: "user", content: 'Return strict JSON: {"answer":"ok"}' }] }),
-      });
-      const raw = await res.text();
-      let env; try { env = JSON.parse(raw); } catch { env = null; }
-      const content = env?.choices?.[0]?.message?.content;
-      console.log(`[diag:fallback_probe:${model}] status=${res.status} elapsed=${Date.now() - t0}ms content=${JSON.stringify(content)} error=${env?.error ? JSON.stringify(env.error).slice(0, 300) : "none"}`);
-    } catch (e) {
-      console.log(`[diag:fallback_probe:${model}] EXCEPTION elapsed=${Date.now() - t0}ms message=${e?.message || e}`);
-    }
-  }
+  await fallbackProbe();
 
   console.log("[diag] all scenarios complete");
+}
+
+// --- Fallback candidate probe: quick, cheap, well-established JSON-mode models
+// to consider for OPENAI_FALLBACK_MODELS. ---
+async function fallbackProbe() {
+  const candidates = [
+    "google/gemma-3-27b-it:free",
+    "meta-llama/llama-3.3-70b-instruct:free",
+    "deepseek/deepseek-chat-v3.1:free",
+    "qwen/qwen3-235b-a22b:free",
+    "mistralai/mistral-small-3.2-24b-instruct:free",
+    "google/gemini-2.0-flash-exp:free",
+  ];
+  for (const model of candidates) {
+    for (const withReasoning of [false, true]) {
+      const t0 = Date.now();
+      const label = `${model}${withReasoning ? "+reasoning" : ""}`;
+      try {
+        const res = await fetch(`${base}/chat/completions`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+          body: JSON.stringify({
+            model, temperature: 0.2, max_tokens: 60,
+            response_format: { type: "json_object" },
+            ...(withReasoning ? { reasoning: { effort: "minimal", exclude: true } } : {}),
+            messages: [{ role: "user", content: 'Return strict JSON: {"answer":"ok"}' }],
+          }),
+        });
+        const raw = await res.text();
+        let env; try { env = JSON.parse(raw); } catch { env = null; }
+        const content = env?.choices?.[0]?.message?.content;
+        console.log(`[diag:fallback_probe:${label}] status=${res.status} elapsed=${Date.now() - t0}ms content=${JSON.stringify(content)} error=${env?.error ? JSON.stringify(env.error).slice(0, 300) : "none"}`);
+      } catch (e) {
+        console.log(`[diag:fallback_probe:${label}] EXCEPTION elapsed=${Date.now() - t0}ms message=${e?.message || e}`);
+      }
+    }
+  }
 }
 
 main().catch((e) => { console.error("[diag] FATAL", e?.stack || e); process.exit(1); });

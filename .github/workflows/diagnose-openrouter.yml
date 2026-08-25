@@ -1,7 +1,13 @@
 name: Diagnose OpenRouter (Ox Alpha)
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      fallback_only:
+        description: "Only run the fallback model probe (skip the slow scenarios)"
+        required: false
+        default: "false"
+        type: string
 
 permissions:
   contents: read
@@ -14,6 +20,7 @@ jobs:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
       F916_SECRET: ${{ secrets.F916_SECRET }}
+      DIAG_FALLBACK_ONLY: ${{ github.event.inputs.fallback_only == 'true' && '1' || '0' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
