@@ -32,6 +32,7 @@ jobs:
       OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
       OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
       F916_SECRET: ${{ secrets.F916_SECRET }}
+      OPENAI_FALLBACK_MODELS: ${{ secrets.OPENAI_FALLBACK_MODELS }}
       AGENT_MODE: social
       NOMAD17_MISSION: ${{ github.event.inputs.mission || '' }}
       NOMAD17_RESEARCH_DEPTH: ${{ github.event.inputs.research_depth || 'normal' }}

@@ -5,11 +5,8 @@ const FALLBACK_MODELS = (process.env.OPENAI_FALLBACK_MODELS || "")
   .split(",").map(x => x.trim()).filter(Boolean);
 const isDeepRun = process.env.NOMAD17_RESEARCH_DEPTH === "deep" && Boolean(String(process.env.NOMAD17_MISSION || "").trim());
 
-function parseJsonLoose(value) {
-  if (value && typeof value === "object" && !Array.isArray(value)) return value;
-  let text = "";
-  if (typeof value === "string") text = value.trim();
-  else if (Array.isArray(value)) text = value.map(x => typeof x === "string" ? x : (x?.text || x?.content || "")).join("").trim();
+function parseJsonLoose(text) {
+  text = String(text || "").trim();
   if (!text) return null;
   const candidates = [text];
   const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
@@ -25,17 +22,13 @@ function parseJsonLoose(value) {
   return null;
 }
 
-function normalizeEnvelope(raw) {
-  let envelope = null;
-  try { envelope = raw ? JSON.parse(raw) : null; } catch { return null; }
-  const message = envelope?.choices?.[0]?.message;
-  if (!message) return null;
-  const parsed = parseJsonLoose(message.content);
-  if (!parsed) return null;
-  message.content = JSON.stringify(parsed);
-  return JSON.stringify(envelope);
-}
-
+// Streams the completion instead of buffering it server-side and returning it in
+// one shot. Two reasons: (1) it gives real time-to-first-token / stage timing for
+// observability, and (2) measured evidence (2026-08-25 diagnostic) showed the
+// non-streaming path to stealth/ox-alpha is the one that stalls past its budget on
+// content-heavy real prompts, while an identical streamed request completes and
+// simply takes as long as generation genuinely takes. Streaming keeps the
+// connection visibly alive instead of looking idle to any intermediate proxy.
 async function attemptModel(input, init, body, model, timeoutMs, reasoningEffort, relayCallerAbort = true) {
   const callerSignal = init.signal;
   const controller = new AbortController();
@@ -44,32 +37,65 @@ async function attemptModel(input, init, body, model, timeoutMs, reasoningEffort
     if (callerSignal.aborted) controller.abort(callerSignal.reason);
     else callerSignal.addEventListener("abort", relayAbort, { once: true });
   }
-  const timer = setTimeout(() => controller.abort(new Error(`${model} budget exceeded`)), timeoutMs);
+  const timer = setTimeout(() => controller.abort(new Error(`${model} budget exceeded (${Math.round(timeoutMs / 1000)}s)`)), timeoutMs);
   const started = Date.now();
+  const stage = (label, extra = "") => console.log(`[router:${model}] ${label} at +${Date.now() - started}ms${extra ? ` ${extra}` : ""}`);
   try {
     const requestBody = {
       ...body,
       model,
       temperature: 0.2,
-      max_tokens: isDeepRun ? 9000 : 6000,
-      reasoning: { effort: reasoningEffort, exclude: true }
+      max_tokens: body.max_tokens,
+      reasoning: { effort: reasoningEffort, exclude: true },
+      stream: true,
     };
+    stage("request_start", `prompt_bytes=${JSON.stringify(requestBody.messages || []).length} max_tokens=${requestBody.max_tokens}`);
     const response = await nativeFetch(input, { ...init, signal: controller.signal, body: JSON.stringify(requestBody) });
-    const raw = await response.text();
-    const normalized = response.ok ? normalizeEnvelope(raw) : null;
-    let detail = "";
-    try {
-      const env = raw ? JSON.parse(raw) : null;
-      const msg = env?.choices?.[0]?.message;
-      const apiError = env?.error?.message || env?.error?.code || "";
-      detail = ` finish=${env?.choices?.[0]?.finish_reason ?? "?"} content_len=${typeof msg?.content === "string" ? msg.content.length : 0} reasoning_len=${typeof msg?.reasoning === "string" ? msg.reasoning.length : 0}${apiError ? ` api_error=${String(apiError).slice(0,300)}` : ""}`;
-    } catch {}
-    console.log(`[router] ${model} status=${response.status} bytes=${raw.length} normalized=${Boolean(normalized)} elapsed=${Date.now() - started}ms${detail}`);
-    if (normalized) return new Response(normalized, { status: response.status, statusText: response.statusText, headers: response.headers });
-    return { response: null, status: response.status, raw };
+    stage("headers_received", `status=${response.status} ok=${response.ok}`);
+
+    if (!response.ok || !response.body) {
+      const raw = await response.text();
+      stage("body_received_error", `bytes=${raw.length} head=${raw.slice(0, 300)}`);
+      return { response: null, status: response.status, raw };
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "", content = "", reasoningText = "", finishReason = null, firstByte = false, errPayload = null;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!firstByte) { firstByte = true; stage("first_byte"); }
+      buf += decoder.decode(value, { stream: true });
+      let idx;
+      while ((idx = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, idx).trim();
+        buf = buf.slice(idx + 1);
+        if (!line.startsWith("data:")) continue;
+        const payload = line.slice(5).trim();
+        if (payload === "[DONE]") continue;
+        let evt;
+        try { evt = JSON.parse(payload); } catch { continue; }
+        if (evt.error) { errPayload = evt.error; continue; }
+        const delta = evt?.choices?.[0]?.delta;
+        if (typeof delta?.reasoning === "string") reasoningText += delta.reasoning;
+        if (typeof delta?.content === "string") content += delta.content;
+        if (evt?.choices?.[0]?.finish_reason) finishReason = evt.choices[0].finish_reason;
+      }
+    }
+    stage("body_received", `content_len=${content.length} reasoning_len=${reasoningText.length} finish_reason=${finishReason}${errPayload ? ` stream_error=${JSON.stringify(errPayload).slice(0, 300)}` : ""}`);
+
+    const parsed = parseJsonLoose(content);
+    if (!parsed) {
+      stage("json_parse_failed", `content_head=${content.slice(0, 200)}`);
+      return { response: null, status: response.status, raw: errPayload ? JSON.stringify(errPayload) : `unparsable content (finish_reason=${finishReason}): ${content.slice(0, 500)}` };
+    }
+    stage("json_parsed");
+    const envelope = JSON.stringify({ choices: [{ message: { content: JSON.stringify(parsed) }, finish_reason: finishReason }] });
+    return { response: new Response(envelope, { status: response.status, statusText: response.statusText }), status: response.status, raw: null };
   } catch (error) {
     if (callerSignal?.aborted && relayCallerAbort) throw error;
-    console.warn(`[router] ${model} failed after ${Date.now() - started}ms: ${error?.message || error}`);
+    stage("exception", String(error?.message || error));
     return { response: null, status: 0, raw: String(error?.message || error) };
   } finally {
     clearTimeout(timer);
@@ -91,17 +117,21 @@ globalThis.fetch = async function nomadFetch(input, init = {}) {
     init,
     body,
     PRIMARY_MODEL,
-    isDeepRun ? 100000 : 85000,
+    isDeepRun ? 150000 : 65000,
     isDeepRun ? "low" : "minimal",
-    // Regular agent.js still has a legacy 70s AbortController. Do not let that
-    // kill Ox Alpha before the router's intentional 85s model budget expires.
+    // Regular agent.js still carries an outer safety-net AbortController. Do not
+    // let that pre-empt Ox Alpha before the router's own budget expires.
     isDeepRun
   );
   if (primary?.response) return primary.response;
 
+  // Keep this budget small: the workflow's own bash `timeout 120s` wraps the whole
+  // regular cycle, and the primary Ox Alpha attempt above already spends up to 65s.
+  // Only configure one or two fallback models, and keep OPENAI_FALLBACK_MODELS
+  // short, or the total (primary + fallbacks) can exceed the outer ceilings.
   for (const model of FALLBACK_MODELS) {
-    console.warn(`[router] Ox Alpha unavailable; fallback -> ${model}`);
-    const fallback = await attemptModel(input, init, body, model, 30000, "minimal", true);
+    console.warn(`[router] Ox Alpha unavailable; fallback -> ${model} (visible fallback, not silent)`);
+    const fallback = await attemptModel(input, init, body, model, 20000, "minimal", true);
     if (fallback?.response) return fallback.response;
   }
 

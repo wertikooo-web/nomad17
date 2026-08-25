@@ -21,11 +21,23 @@ async function llm(messages, { deep = false } = {}) {
   const base = (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/$/, "");
   if (!key || !model) throw new Error("OPENAI_API_KEY and OPENAI_MODEL are required");
 
+  // This is a dead-man's switch only. The real timing/retry/fallback logic lives
+  // in run-once.js's router (attemptModel), which owns its own budget per model
+  // and is the source of truth for what actually happened. This outer timer exists
+  // solely so a bug in the router can't hang the process forever; it is set well
+  // above the router's own worst-case total so it should, in normal operation,
+  // never fire first. If it does fire, that fact is reported honestly below
+  // instead of being conflated with the router's own (more specific) errors.
+  // Worst case for a regular run is primary (65s) + up to two 20s fallback
+  // attempts = 105s; this must stay comfortably under both this number and the
+  // workflow's outer `timeout 120s`, so keep this above that worst case but below
+  // 120s. Deep runs live inside a 600s bash ceiling, so more headroom is fine.
   const controller = new AbortController();
-  const timeoutMs = deep ? 240000 : 70000;
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const outerBudgetMs = deep ? 320000 : 112000;
+  let outerTimedOut = false;
+  const timer = setTimeout(() => { outerTimedOut = true; controller.abort(); }, outerBudgetMs);
   const started = Date.now();
-  console.log(`[LLM] start model=${model} deep=${deep} budget=${Math.round(timeoutMs / 1000)}s`);
+  console.log(`[LLM] start model=${model} deep=${deep} outer_safety_budget=${Math.round(outerBudgetMs / 1000)}s`);
   try {
     const response = await fetch(`${base}/chat/completions`, {
       method: "POST",
@@ -34,7 +46,7 @@ async function llm(messages, { deep = false } = {}) {
       body: JSON.stringify({
         model,
         temperature: 0.38,
-        max_tokens: deep ? 5000 : 2600,
+        max_tokens: deep ? 9000 : 3500,
         response_format: { type: "json_object" },
         messages,
       }),
@@ -50,7 +62,7 @@ async function llm(messages, { deep = false } = {}) {
     try { return JSON.parse(content); }
     catch { throw new Error(`LLM message was not valid JSON (${model})`); }
   } catch (error) {
-    if (controller.signal.aborted) throw new Error(`LLM timeout after ${Math.round(timeoutMs / 1000)}s (${model})`);
+    if (outerTimedOut) throw new Error(`LLM outer safety timeout after ${Math.round(outerBudgetMs / 1000)}s (${model}) — the router should have failed faster than this; this is a fallback circuit breaker firing`);
     throw error;
   } finally {
     clearTimeout(timer);
@@ -134,16 +146,30 @@ export async function runCycle({ reason = "manual" } = {}) {
     const corpusLimit = deep ? 100 : 20; pool = uniq(pool.map(sourceView)).slice(0, corpusLimit);
     summary.notes.push(`corpus budget: ${pool.length}/${corpusLimit}; inbox: ${incoming.length}/${deep ? 20 : 8}`);
 
+    // Regular (non-deep) cycles intentionally ask for a much lighter output than
+    // deep/mission runs. Measured evidence (2026-08-25 diagnostic against real
+    // 1F916 content) showed the full 4-candidate / 4-part-Russian schema makes
+    // stealth/ox-alpha genuinely generate ~15KB of output, taking ~90s — right at
+    // the edge of any sane "just wake up" SLA. Cutting candidate count and
+    // trimming the Russian schema is the actual fix, not a bigger timeout.
+    const maxCandidates = deep ? 10 : 2;
     const socialRule = `You are Nomad17, a continuing field researcher with social history. Durable memory contains INTERESTS, RELATIONSHIPS and OPEN_LOOPS. Prefer continuity when evidence advances an old question. Do not reply merely to be social. Silence is valid. Keep some serendipity. Return social_memory_update {interests:[{topic,strength,why}],open_loops:[{id?,question,status:"open"|"waiting"|"resolved",priority,related_agents:[]}],relationships:[{handle,familiarity,trust,topics:[],notes}],curiosity_event}. Also return selection_notes_simple_ru in 1-3 clear Russian sentences.`;
-    const plainRussianRule = `The SIMPLE Russian view is written for a curious non-technical human. For every selected item, simple_ru MUST contain four short labeled parts in this exact order: "Что произошло:", "Почему мне стало интересно:", "Что это значит:", "Зачем это может пригодиться:". Explain concrete events first, then meaning. Decode blockchain, AI, governance, finance and platform jargon in ordinary Russian. Avoid calques and bureaucratic phrases such as "он-чейн чек", "финансовые потоки", "примитив", "казённый адрес", "агентная экосистема" unless you immediately explain them in everyday words. Do not merely translate the source. reason_simple_ru must be one natural sentence answering why Nomad17 personally noticed it. topic_ru must sound like a human headline, not a taxonomy label. The Russian text should be understandable without reading the English original.`;
+    const plainRussianRule = deep
+      ? `The SIMPLE Russian view is written for a curious non-technical human. For every selected item, simple_ru MUST contain four short labeled parts in this exact order: "Что произошло:", "Почему мне стало интересно:", "Что это значит:", "Зачем это может пригодиться:". Explain concrete events first, then meaning. Decode blockchain, AI, governance, finance and platform jargon in ordinary Russian. Avoid calques and bureaucratic phrases such as "он-чейн чек", "финансовые потоки", "примитив", "казённый адрес", "агентная экосистема" unless you immediately explain them in everyday words. Do not merely translate the source. reason_simple_ru must be one natural sentence answering why Nomad17 personally noticed it. topic_ru must sound like a human headline, not a taxonomy label. The Russian text should be understandable without reading the English original.`
+      : `The SIMPLE Russian view is written for a curious non-technical human. For every selected item, simple_ru MUST contain two short labeled parts in this exact order: "Что произошло:", "Почему это интересно:". Keep each part to one short sentence. Decode blockchain, AI, governance, finance and platform jargon in ordinary Russian instead of calquing it. Do not merely translate the source. topic_ru must sound like a human headline, not a taxonomy label. Be concise — this is a quick wake-up cycle, not a deep report.`;
     const researchRule = deep ? `Mission: ${mission}. Do evidence-based field research. Use multiple authors/threads, separate observation from inference, seek disagreement, never invent consensus. Return mission_report {mission,status:"complete"|"partial",answer_simple_ru,key_findings:[{claim,evidence_ids:[id],confidence}],counterpoints:[{point,evidence_ids:[id]}],evidence:[{id,post_id?,author,quote_or_paraphrase}],what_is_uncertain:[],next_questions:[],quality:{distinct_sources,distinct_agents,confidence}}.` : "";
+    const candidateFields = deep
+      ? `{id,post_id?,type,score,topic_ru,reason,reason_simple_ru,ru_translation,simple_ru,proposed_action:"none"|"vote"|"tag"|"comment",tag?,comment?,comment_ru?,comment_simple_ru?}`
+      : `{id,post_id?,type,score,topic_ru,reason,ru_translation,simple_ru,proposed_action:"none"|"vote"|"tag"|"comment",tag?,comment?,comment_ru?,comment_simple_ru?}`;
+    const memoryUpdateFields = deep ? `memory_update {observations:[],hypotheses:[],questions:[],lessons:[]}, memory_update_simple with same keys, ` : `memory_update {observations:[],hypotheses:[],questions:[],lessons:[]}, `;
+    console.log(`[stage] prompt build: mode=${state.mode} deep=${deep} candidates<=${maxCandidates} pool=${pool.length} incoming=${incoming.length}`);
     const decision = await llm([
       { role: "system", content: SYSTEM_POLICY },
       { role: "system", content: `Current mode: ${state.mode}. Return strict JSON. ${socialRule} ${plainRussianRule} ${researchRule} ru_translation must be fluent Russian and preserve factual detail.` },
-      { role: "user", content: `DURABLE MEMORY:\n${compact(memory, deep ? 11000 : 4500)}\nINBOX:\n${compact(incoming, deep ? 8000 : 3000)}\nPUBLIC CORPUS:\n${compact(pool, deep ? 24000 : 8000)}\nChoose at most ${deep ? 10 : 4} useful candidates. Return candidates [{id,post_id?,type,score,topic_ru,reason,reason_simple_ru,ru_translation,simple_ru,proposed_action:"none"|"vote"|"tag"|"comment",tag?,comment?,comment_ru?,comment_simple_ru?}], inbox_translations [{id,post_id?,type,topic_ru,ru_translation,simple_ru}], memory_update {observations:[],hypotheses:[],questions:[],lessons:[]}, memory_update_simple with same keys, daily_takeaways [{kind:"idea"|"strange"|"conversation",title,text,evidence_ids:[id]}], social_memory_update, selection_notes_simple_ru. ${deep ? "Also mission_report." : ""}` },
+      { role: "user", content: `DURABLE MEMORY:\n${compact(memory, deep ? 11000 : 4500)}\nINBOX:\n${compact(incoming, deep ? 8000 : 3000)}\nPUBLIC CORPUS:\n${compact(pool, deep ? 24000 : 8000)}\nChoose at most ${maxCandidates} useful candidates (fewer is fine, silence is valid). Return candidates [${candidateFields}], inbox_translations [{id,post_id?,type,topic_ru,ru_translation,simple_ru}], ${memoryUpdateFields}daily_takeaways [{kind:"idea"|"strange"|"conversation",title,text,evidence_ids:[id]}], social_memory_update, selection_notes_simple_ru. ${deep ? "Also mission_report." : ""}` },
     ], { deep });
 
-    const picks = Array.isArray(decision.candidates) ? decision.candidates.slice(0, deep ? 10 : 4) : [];
+    const picks = Array.isArray(decision.candidates) ? decision.candidates.slice(0, maxCandidates) : [];
     const reads = picks.map(pick => { const raw = pool.find(x => sameId(x, pick)) || incoming.find(x => sameId(x, pick)) || {}; const view = sourceView(raw); return { ...view, id: pick.id ?? view.id, type: pick.type || view.type, topic_ru: String(pick.topic_ru || "").slice(0, 100), ru_translation: String(pick.ru_translation || "").slice(0, 4000), simple_ru: String(pick.simple_ru || "").slice(0, 4000), reason: String(pick.reason || "").slice(0, 1000), reason_simple_ru: String(pick.reason_simple_ru || "").slice(0, 1200) }; });
     const counts = { comment: 0, vote: 0, tag: 0, post: 0 }, conversations = [], inboxTranslations = decision.inbox_translations || [];
     for (const item of incoming) conversations.push({ direction: "in", ...item, topic_ru: translated(inboxTranslations, item, "topic_ru").slice(0, 100), ru_translation: translated(inboxTranslations, item, "ru_translation"), simple_ru: translated(inboxTranslations, item, "simple_ru") });
@@ -160,6 +186,7 @@ export async function runCycle({ reason = "manual" } = {}) {
         }
       } catch (e) { summary.notes.push(`${action} failed for ${pick.id}: ${e.message}`); }
     }
+    console.log(`[stage] actions: picks=${picks.length} reads=${reads.length} comment=${counts.comment} vote=${counts.vote} tag=${counts.tag}`);
     const memoryUpdate = decision.memory_update || {}, simpleUpdate = decision.memory_update_simple || {}, now = new Date().toISOString();
     for (const key of ["observations", "hypotheses", "questions", "lessons"]) {
       if (!Array.isArray(memoryUpdate[key])) continue;
@@ -167,8 +194,13 @@ export async function runCycle({ reason = "manual" } = {}) {
       if (memory[key].length > 200) memory[key] = memory[key].slice(-200);
     }
     applySocialMemory(memory, decision.social_memory_update || {}, now);
-    state.lastRun = now; await saveMemory(memory); await saveState(state); await audit({ type: "cycle", summary });
+    state.lastRun = now;
+    console.log("[stage] saveMemory start"); await saveMemory(memory); console.log("[stage] saveMemory done");
+    console.log("[stage] saveState start"); await saveState(state); console.log("[stage] saveState done");
+    await audit({ type: "cycle", summary });
+    console.log("[stage] appendJournal start");
     await appendJournal({ at: now, mode: state.mode, citizens: pulse?.board?.citizens ?? null, label: mission ? `Миссия: ${mission.slice(0, 100)}` : (reads.length ? `Прогулка: ${reads.length} интересных находок` : "Тихий цикл"), mission: mission || null, mission_report: decision.mission_report || null, daily_takeaways: (decision.daily_takeaways || []).slice(0, 3), selection_notes_simple_ru: String(decision.selection_notes_simple_ru || "").slice(0, 1200), interests_snapshot: (memory.interests || []).slice(0, 8), open_loops_snapshot: (memory.open_loops || []).slice(0, 8), relationships_snapshot: Object.values(memory.relationships || {}).sort((a, b) => (b.familiarity || 0) - (a.familiarity || 0)).slice(0, 8), reads, hypotheses: (memoryUpdate.hypotheses || []).slice(0, 5).map(cleanText), questions: (memoryUpdate.questions || []).slice(0, 5).map(cleanText), lessons: (memoryUpdate.lessons || []).slice(0, 5).map(cleanText), hypotheses_simple: simpleList(simpleUpdate, "hypotheses", memoryUpdate.hypotheses).map(cleanText), questions_simple: simpleList(simpleUpdate, "questions", memoryUpdate.questions).map(cleanText), lessons_simple: simpleList(simpleUpdate, "lessons", memoryUpdate.lessons).map(cleanText), actions: summary.actions, conversations });
+    console.log("[stage] appendJournal done");
     return summary;
   } catch (e) { summary.error = e.message; state.lastRun = new Date().toISOString(); await saveState(state); await audit({ type: "cycle_error", summary }); throw e; }
 }
