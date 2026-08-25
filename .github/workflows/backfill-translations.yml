@@ -37,6 +37,7 @@ jobs:
       - name: Normalize memory and translate journal
         run: node scripts/backfill-journal-translations.js
       - name: Save normalized memory and translated journal
+        if: always()
         run: |
           mkdir -p /tmp/nomad17-backfill
           cp docs/journal.json /tmp/nomad17-backfill/journal.json
