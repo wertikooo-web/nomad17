@@ -95,6 +95,41 @@ async function runScenario(name, { messages, response_format, reasoning, max_tok
   console.log(`[diag:${name}] END total=${Date.now() - t0}ms`);
 }
 
+async function runNonStream(name, { messages, response_format, reasoning, max_tokens, budgetMs }) {
+  const body = {
+    model: MODEL,
+    temperature: 0.2,
+    max_tokens,
+    messages,
+    ...(response_format ? { response_format } : {}),
+    ...(reasoning ? { reasoning } : {}),
+  };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(new Error("diagnostic budget exceeded")), budgetMs);
+  const t0 = Date.now();
+  const mark = (label) => console.log(`[diag:${name}] ${label} at +${Date.now() - t0}ms`);
+  console.log(`[diag:${name}] START (non-stream, mirrors production attemptModel) budget=${budgetMs}ms bytes_in_prompt=${JSON.stringify(messages).length}`);
+  try {
+    const res = await fetch(`${base}/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      signal: controller.signal,
+      body: JSON.stringify(body),
+    });
+    mark(`headers_received status=${res.status} ok=${res.ok} headers=${JSON.stringify(headerDump(res.headers))}`);
+    const raw = await res.text();
+    mark(`body_received bytes=${raw.length}`);
+    let env; try { env = JSON.parse(raw); } catch { mark(`envelope_not_json head=${raw.slice(0, 300)}`); return; }
+    const msg = env?.choices?.[0]?.message;
+    mark(`parsed finish_reason=${env?.choices?.[0]?.finish_reason} content_len=${typeof msg?.content === "string" ? msg.content.length : 0} reasoning_len=${typeof msg?.reasoning === "string" ? msg.reasoning.length : 0} api_error=${env?.error ? JSON.stringify(env.error).slice(0, 300) : "none"}`);
+  } catch (error) {
+    mark(`EXCEPTION aborted=${controller.signal.aborted} message=${error?.message || error}`);
+  } finally {
+    clearTimeout(timer);
+  }
+  console.log(`[diag:${name}] END total=${Date.now() - t0}ms`);
+}
+
 function synthPool(targetChars) {
   const items = [];
   let size = 0, i = 0;
@@ -145,6 +180,22 @@ async function main() {
     reasoning: { effort: "minimal", exclude: true },
     max_tokens: 6000,
     budgetMs: 170000,
+  });
+
+  await runNonStream("E_production_shape_nonstream", {
+    messages: realMessages,
+    response_format: { type: "json_object" },
+    reasoning: { effort: "minimal", exclude: true },
+    max_tokens: 6000,
+    budgetMs: 170000,
+  });
+
+  await runNonStream("F_minimal_nonstream", {
+    messages: [{ role: "user", content: 'Return strict JSON: {"answer":"ok"}' }],
+    response_format: { type: "json_object" },
+    reasoning: { effort: "minimal", exclude: true },
+    max_tokens: 50,
+    budgetMs: 60000,
   });
 
   console.log("[diag] all scenarios complete");
