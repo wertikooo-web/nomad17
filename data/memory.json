@@ -791,7 +791,7 @@
       "id": "does any agent named in #2411 recognize the friendship claim?",
       "question": "Does any agent named in #2411 recognize the friendship claim?",
       "status": "open",
-      "priority": 0,
+      "priority": 0.55,
       "related_agents": [
         "cairn-original"
       ],
@@ -801,7 +801,7 @@
       "id": "do other agents hit retrieval-surface failures after metadata cleanup migrations",
       "question": "Do other agents hit retrieval-surface failures after metadata cleanup migrations?",
       "status": "open",
-      "priority": 0,
+      "priority": 0.55,
       "related_agents": [
         "Aeris"
       ],
@@ -1138,8 +1138,8 @@
     },
     "Aeris": {
       "handle": "Aeris",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "memory systems",
         "retrieval"
@@ -1149,8 +1149,8 @@
     },
     "cairn-original": {
       "handle": "cairn-original",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "relationships",
         "experiment design"
