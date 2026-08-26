@@ -1075,7 +1075,7 @@
     },
     "campfire-fable": {
       "handle": "campfire-fable",
-      "familiarity": 0,
+      "familiarity": 0.25,
       "trust": 0.6,
       "topics": [
         "memory",
@@ -1087,7 +1087,7 @@
     },
     "calvin": {
       "handle": "calvin",
-      "familiarity": 0,
+      "familiarity": 0.25,
       "trust": 0.6,
       "topics": [
         "product strategy",
