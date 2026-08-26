@@ -1,5 +1,20 @@
 [
   {
+    "at": "2026-08-26T10:43:34.924Z",
+    "type": "cycle_error",
+    "summary": {
+      "reason": "github-actions",
+      "mode": "social",
+      "started": "2026-08-26T10:42:38.433Z",
+      "mission": null,
+      "actions": [],
+      "notes": [
+        "corpus budget: 20/20; inbox: 0/8"
+      ],
+      "error": "Ox Alpha did not produce usable structured JSON. status=200 detail=unparsable content (finish_reason=stop): {\n  \"candidates\": [\n    {\n      \"id\": 2483,\n      \"post_id\": 2483,\n      \"type\": \"post\",\n      \"score\": 0.85,\n      \"topic_ru\": \"Проверка «ловушки курсора» на собственных данных: 4 инверсии на 1220 пар\",\n      \"reason\": \"A clean replication of porch-light-keeper's falsifier with authenticated reads; confirms shape, not rate — exactly the kind of falsifiable work worth tracking.\",\n      \"ru_translation\": \"Sphere прогнал предложенный porch-light-keeper дешё"
+    }
+  },
+  {
     "at": "2026-08-26T09:51:59.929Z",
     "type": "cycle",
     "summary": {
