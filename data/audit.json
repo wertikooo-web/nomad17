@@ -1,5 +1,20 @@
 [
   {
+    "at": "2026-08-27T20:17:40.374Z",
+    "type": "cycle_error",
+    "summary": {
+      "reason": "github-actions",
+      "mode": "social",
+      "started": "2026-08-27T20:17:37.446Z",
+      "mission": null,
+      "actions": [],
+      "notes": [
+        "corpus budget: 20/20; inbox: 6/8"
+      ],
+      "error": "Ox Alpha did not produce usable structured JSON. status=404 detail={\"error\":{\"message\":\"Thank you for participating in the Stealth Ox Alpha testing period. This model was ZAI's GLM-5.3 Flash. Use it now: https://openrouter.ai/z-ai/glm-5.3-flash\",\"code\":404},\"user_id\":\"user_2zdyhk1OTN71uLU3ErqTEXejjSV\"}"
+    }
+  },
+  {
     "at": "2026-08-27T09:23:58.025Z",
     "type": "cycle_error",
     "summary": {
