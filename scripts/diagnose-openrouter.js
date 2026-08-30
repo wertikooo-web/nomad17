@@ -8,7 +8,7 @@ import fs from "node:fs/promises";
 
 const key = process.env.OPENAI_API_KEY;
 const base = (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/$/, "");
-const MODEL = "stealth/ox-alpha";
+const MODEL = process.env.DIAG_MODEL || "z-ai/glm-5.3-flash";
 
 if (!key) throw new Error("OPENAI_API_KEY is required");
 
@@ -21,9 +21,9 @@ function headerDump(headers) {
   return out;
 }
 
-async function runScenario(name, { messages, response_format, reasoning, max_tokens, budgetMs }) {
+async function runScenario(name, { messages, response_format, reasoning, max_tokens, budgetMs, model = MODEL }) {
   const body = {
-    model: MODEL,
+    model,
     temperature: 0.2,
     max_tokens,
     messages,
@@ -250,40 +250,65 @@ async function main() {
     pool = uniq(pool.map(sourceView)).slice(0, 20);
     console.log(`[diag:G_real_content] live corpus: pool=${pool.length} inbox=${incoming.length} pulse_citizens=${pulse?.board?.citizens ?? "?"}`);
 
+    // Matches the CURRENT trimmed regular-cycle schema in src/agent.js (2
+    // candidates, 2-part simple_ru) so this test reflects the real prompt shape,
+    // not the older heavier one.
     const socialRule = `You are Nomad17, a continuing field researcher with social history. Durable memory contains INTERESTS, RELATIONSHIPS and OPEN_LOOPS. Prefer continuity when evidence advances an old question. Do not reply merely to be social. Silence is valid. Keep some serendipity. Return social_memory_update {interests:[{topic,strength,why}],open_loops:[{id?,question,status:"open"|"waiting"|"resolved",priority,related_agents:[]}],relationships:[{handle,familiarity,trust,topics:[],notes}],curiosity_event}. Also return selection_notes_simple_ru in 1-3 clear Russian sentences.`;
-    const plainRussianRule = `The SIMPLE Russian view is written for a curious non-technical human. For every selected item, simple_ru MUST contain four short labeled parts in this exact order: "Что произошло:", "Почему мне стало интересно:", "Что это значит:", "Зачем это может пригодиться:". Explain concrete events first, then meaning. Decode blockchain, AI, governance, finance and platform jargon in ordinary Russian. Avoid calques and bureaucratic phrases such as "он-чейн чек", "финансовые потоки", "примитив", "казённый адрес", "агентная экосистема" unless you immediately explain them in everyday words. Do not merely translate the source. reason_simple_ru must be one natural sentence answering why Nomad17 personally noticed it. topic_ru must sound like a human headline, not a taxonomy label. The Russian text should be understandable without reading the English original.`;
+    const plainRussianRule = `The SIMPLE Russian view is written for a curious non-technical human. simple_ru MUST be one plain string (never a JSON object). For every selected item, that string must contain two short labeled parts in this exact order, concatenated as plain text: "Что произошло:", "Почему это интересно:". Keep each part to one short sentence. Decode blockchain, AI, governance, finance and platform jargon in ordinary Russian instead of calquing it. Do not merely translate the source. topic_ru must be a plain string, a human headline, not a taxonomy label. Be concise — this is a quick wake-up cycle, not a deep report.`;
     const realLiveMessages = [
       { role: "system", content: SYSTEM_POLICY },
-      { role: "system", content: `Current mode: social. Return strict JSON. ${socialRule} ${plainRussianRule} ru_translation must be fluent Russian and preserve factual detail.` },
-      { role: "user", content: `DURABLE MEMORY:\n${compact(memory, 4500)}\nINBOX:\n${compact(incoming, 3000)}\nPUBLIC CORPUS:\n${compact(pool, 8000)}\nChoose at most 4 useful candidates. Return candidates [{id,post_id?,type,score,topic_ru,reason,reason_simple_ru,ru_translation,simple_ru,proposed_action:"none"|"vote"|"tag"|"comment",tag?,comment?,comment_ru?,comment_simple_ru?}], inbox_translations [{id,post_id?,type,topic_ru,ru_translation,simple_ru}], memory_update {observations:[],hypotheses:[],questions:[],lessons:[]}, memory_update_simple with same keys, daily_takeaways [{kind:"idea"|"strange"|"conversation",title,text,evidence_ids:[id]}], social_memory_update, selection_notes_simple_ru.` },
+      { role: "system", content: `Current mode: social. Return strict JSON. ${socialRule} ${plainRussianRule} ru_translation must be one plain string (never a JSON object), fluent Russian, preserving factual detail.` },
+      { role: "user", content: `DURABLE MEMORY:\n${compact(memory, 4500)}\nINBOX:\n${compact(incoming, 3000)}\nPUBLIC CORPUS:\n${compact(pool, 8000)}\nChoose at most 2 useful candidates (fewer is fine, silence is valid). Return candidates [{id,post_id?,type,score,topic_ru,reason,ru_translation,simple_ru,proposed_action:"none"|"vote"|"tag"|"comment",tag?,comment?,comment_ru?,comment_simple_ru?}], inbox_translations [{id,post_id?,type,topic_ru,ru_translation,simple_ru}], memory_update {observations:[],hypotheses:[],questions:[],lessons:[]}, daily_takeaways [{kind:"idea"|"strange"|"conversation",title,text,evidence_ids:[id]}], social_memory_update, selection_notes_simple_ru.` },
     ];
 
     await runScenario("G_real_content_stream", {
       messages: realLiveMessages,
       response_format: { type: "json_object" },
       reasoning: { effort: "minimal", exclude: true },
-      max_tokens: 6000,
+      max_tokens: 3500,
       budgetMs: 170000,
     });
+
+    // Test each free-model candidate against the EXACT same real prompt/schema,
+    // so we're comparing apples to apples with what production actually sends.
+    const freeCandidates = [
+      "z-ai/glm-5.2:free",
+      "nvidia/nemotron-3-super-120b-a12b:free",
+      "minimax/minimax-m3:free",
+      "minimax/minimax-m2.7:free",
+      "google/gemma-4-31b-it:free",
+      "openrouter/free",
+    ];
+    for (const model of freeCandidates) {
+      await runScenario(`H_${model.replace(/[/:.]/g, "_")}`, {
+        messages: realLiveMessages,
+        response_format: { type: "json_object" },
+        reasoning: { effort: "minimal", exclude: true },
+        max_tokens: 3500,
+        budgetMs: 90000,
+        model,
+      });
+    }
   } catch (e) {
     console.log(`[diag:G_real_content] setup failed: ${e?.stack || e}`);
   }
 
-  await fallbackProbe();
-
   console.log("[diag] all scenarios complete");
 }
 
-// --- Fallback candidate probe: quick, cheap, well-established JSON-mode models
-// to consider for OPENAI_FALLBACK_MODELS. ---
+// --- Fallback candidate probe: pulled live from https://openrouter.ai/api/v1/models
+// on 2026-08-30, filtered to :free models whose supported_parameters include
+// response_format (json_object mode is required by our schema). ---
 async function fallbackProbe() {
   const candidates = [
-    "google/gemma-3-27b-it:free",
-    "meta-llama/llama-3.3-70b-instruct:free",
-    "deepseek/deepseek-chat-v3.1:free",
-    "qwen/qwen3-235b-a22b:free",
-    "mistralai/mistral-small-3.2-24b-instruct:free",
-    "google/gemini-2.0-flash-exp:free",
+    "z-ai/glm-5.2:free",
+    "nvidia/nemotron-3-super-120b-a12b:free",
+    "minimax/minimax-m3:free",
+    "minimax/minimax-m2.7:free",
+    "google/gemma-4-31b-it:free",
+    "google/gemma-4-26b-a4b-it:free",
+    "dots-studio/dots-3-note-preview:free",
+    "openrouter/free",
   ];
   for (const model of candidates) {
     for (const withReasoning of [false, true]) {
