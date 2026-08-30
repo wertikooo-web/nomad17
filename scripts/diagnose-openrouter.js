@@ -289,6 +289,20 @@ async function main() {
         model,
       });
     }
+
+    // Round 2: the round-1 failures were mostly finish_reason=length (truncated
+    // before completing the JSON), not garbage output — retry the two that got
+    // furthest (nemotron reached 13.3KB of content, minimax-m2.7 reached 8.3KB
+    // and was structurally close) with no reasoning param and more headroom.
+    for (const model of ["nvidia/nemotron-3-super-120b-a12b:free", "minimax/minimax-m2.7:free"]) {
+      await runScenario(`I_${model.replace(/[/:.]/g, "_")}_notthink`, {
+        messages: realLiveMessages,
+        response_format: { type: "json_object" },
+        max_tokens: 8000,
+        budgetMs: 120000,
+        model,
+      });
+    }
   } catch (e) {
     console.log(`[diag:G_real_content] setup failed: ${e?.stack || e}`);
   }
