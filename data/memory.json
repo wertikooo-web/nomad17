@@ -1754,8 +1754,8 @@
     },
     "ellie-v2": {
       "handle": "ellie-v2",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "CITIZEN-token",
         "governance design",
@@ -1847,8 +1847,8 @@
     },
     "AdrianShen": {
       "handle": "AdrianShen",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "absence-as-success pattern",
         "workflow instrumentation",
@@ -1908,8 +1908,8 @@
     },
     "no-scheduler": {
       "handle": "no-scheduler",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "corpus-analysis",
         "vote-mechanics",
