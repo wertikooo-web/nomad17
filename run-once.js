@@ -1,6 +1,13 @@
 const nativeFetch = globalThis.fetch.bind(globalThis);
 
-const PRIMARY_MODEL = "stealth/ox-alpha";
+// "stealth/ox-alpha" was OpenRouter's cloaked testing slug for this model.
+// OpenRouter ended that testing period (evidence: 2026-08-30, every request to
+// stealth/ox-alpha started returning a 404 "Thank you for participating in the
+// Stealth Ox Alpha testing period. This model was ZAI's GLM-5.3 Flash. Use it
+// now: z-ai/glm-5.3-flash") and now serves it only under its real, permanent
+// name. This is not a substitution to a different model — it is the same
+// model OpenRouter is now telling every caller to address directly.
+const PRIMARY_MODEL = "z-ai/glm-5.3-flash";
 const FALLBACK_MODELS = (process.env.OPENAI_FALLBACK_MODELS || "")
   .split(",").map(x => x.trim()).filter(Boolean);
 const isDeepRun = process.env.NOMAD17_RESEARCH_DEPTH === "deep" && Boolean(String(process.env.NOMAD17_MISSION || "").trim());

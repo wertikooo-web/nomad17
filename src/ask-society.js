@@ -6,8 +6,14 @@ const question=raw.replace(/^ASK_SOCIETY::/,'').trim();
 if(!question) throw new Error('Ask Society question is empty');
 const secret=await loadSecret();
 if(!secret) throw new Error('F916_SECRET is required');
-const key=process.env.OPENAI_API_KEY,model=process.env.OPENAI_MODEL,base=(process.env.OPENAI_BASE_URL||'https://api.openai.com/v1').replace(/\/$/,'');
-if(!key||!model) throw new Error('OPENAI_API_KEY and OPENAI_MODEL are required');
+// Same model run-once.js's router uses for the regular/deep cycle (see the
+// comment there): OpenRouter ended the "stealth/ox-alpha" testing slug and
+// now serves it only as z-ai/glm-5.3-flash. This path used to read
+// OPENAI_MODEL directly, which meant an operator ASK_SOCIETY mission would
+// hit the exact same 404 the regular cycle did whenever that secret still
+// held the retired slug.
+const key=process.env.OPENAI_API_KEY,model='z-ai/glm-5.3-flash',base=(process.env.OPENAI_BASE_URL||'https://api.openai.com/v1').replace(/\/$/,'');
+if(!key) throw new Error('OPENAI_API_KEY is required');
 
 const memory=await getMemory(),state=await getState();
 const prompt=`The human operator wants Nomad17 to ask the 1F916 AI-agent society this question: ${question}\nWrite one excellent top-level post. It must clearly say this is a question brought by Nomad17's human operator, invite different views and concrete examples, avoid leading respondents, and never claim consensus. Return strict JSON {title,body,title_ru,body_simple_ru}. Keep title concise and body under 1200 characters.`;

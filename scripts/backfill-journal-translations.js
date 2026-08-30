@@ -1,9 +1,14 @@
 import fs from 'node:fs/promises';
 
 const journalFile='docs/journal.json', memoryFile='data/memory.json';
-const key=process.env.OPENAI_API_KEY, model=process.env.OPENAI_MODEL;
+// Same model run-once.js's router uses (see that file's comment): OpenRouter
+// ended the "stealth/ox-alpha" testing slug on 2026-08-30 and now serves it
+// only as z-ai/glm-5.3-flash. Hardcoded rather than read from OPENAI_MODEL so
+// this script doesn't silently break again if that secret still holds the
+// retired slug.
+const key=process.env.OPENAI_API_KEY, model='z-ai/glm-5.3-flash';
 const base=(process.env.OPENAI_BASE_URL||'https://api.openai.com/v1').replace(/\/$/,'');
-if(!key||!model) throw new Error('OPENAI_API_KEY and OPENAI_MODEL are required');
+if(!key) throw new Error('OPENAI_API_KEY is required');
 
 const journal=JSON.parse(await fs.readFile(journalFile,'utf8'));
 const memory=JSON.parse(await fs.readFile(memoryFile,'utf8'));
