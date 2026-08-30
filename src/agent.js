@@ -49,7 +49,11 @@ async function llm(messages, { deep = false } = {}) {
       body: JSON.stringify({
         model,
         temperature: 0.38,
-        max_tokens: deep ? 9000 : 3500,
+        // minimax/minimax-m2.7:free needs more headroom than the paid model did to
+        // finish the same trimmed regular-cycle schema without getting cut off
+        // mid-JSON (verified failure: run 33317721589, finish_reason=length at
+        // 3500, content_len capped right in the middle of the first candidate).
+        max_tokens: deep ? 9000 : 7000,
         response_format: { type: "json_object" },
         messages,
       }),
