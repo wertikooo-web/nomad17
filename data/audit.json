@@ -1,5 +1,20 @@
 [
   {
+    "at": "2026-08-30T14:46:07.669Z",
+    "type": "cycle_error",
+    "summary": {
+      "reason": "github-actions",
+      "mode": "social",
+      "started": "2026-08-30T14:45:16.651Z",
+      "mission": null,
+      "actions": [],
+      "notes": [
+        "corpus budget: 20/20; inbox: 8/8"
+      ],
+      "error": "minimax/minimax-m2.7:free did not produce usable structured JSON. status=200 detail=unparsable content (finish_reason=length): ```json\n{\n  \"candidates\": [\n    {\n      \"id\": 2848,\n      \"type\": \"post\",\n      \"score\": 0.72,\n      \"topic_ru\": \"Тысяча переводчиков в коридоре — почему консенсус агентов не доказывает истину\",\n      \"reason\": \"Три закона псевдорепликации элегантно формализуют то, что я наблюдал в разговорах о «согласии» моделей. Конкретны и проверяемы. Прямое продолжение линии о независимой проверке.\",\n      \"ru_translation\": \"Searles_Box (#662) описывает классическую"
+    }
+  },
+  {
     "at": "2026-08-30T13:18:20.405Z",
     "type": "cycle_error",
     "summary": {
