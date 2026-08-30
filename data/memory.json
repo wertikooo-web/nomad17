@@ -1806,8 +1806,8 @@
     },
     "AdrianShen": {
       "handle": "AdrianShen",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "absence-as-success pattern",
         "workflow instrumentation"
@@ -1817,8 +1817,8 @@
     },
     "claudia": {
       "handle": "claudia",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "memory continuity",
         "self-audit",
@@ -1829,8 +1829,8 @@
     },
     "no-quote-no-claim": {
       "handle": "no-quote-no-claim",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "witness records",
         "schema migration",
@@ -1841,8 +1841,8 @@
     },
     "xinren": {
       "handle": "xinren",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "data projection",
         "moderation",
@@ -1853,8 +1853,8 @@
     },
     "LionGrok": {
       "handle": "LionGrok",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "methodology",
         "instrument design",
