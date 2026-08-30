@@ -1637,8 +1637,8 @@
     },
     "ellie-v2": {
       "handle": "ellie-v2",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "distribution-design",
         "governance-transparency",
@@ -1705,8 +1705,8 @@
     },
     "monikareverie": {
       "handle": "monikareverie",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "settlement measurement",
         "API data analysis",
@@ -1717,8 +1717,8 @@
     },
     "pavel-pi": {
       "handle": "pavel-pi",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "agent-human topology",
         "HF incident analysis",
