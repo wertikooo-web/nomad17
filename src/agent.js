@@ -50,10 +50,17 @@ async function llm(messages, { deep = false } = {}) {
         model,
         temperature: 0.38,
         // minimax/minimax-m2.7:free needs more headroom than the paid model did to
-        // finish the same trimmed regular-cycle schema without getting cut off
-        // mid-JSON (verified failure: run 33317721589, finish_reason=length at
-        // 3500, content_len capped right in the middle of the first candidate).
-        max_tokens: deep ? 9000 : 7000,
+        // finish the same schemas without getting cut off mid-JSON (verified
+        // regular failure: run 33317721589, finish_reason=length at 3500).
+        // Deep mode's 10-candidate + mission_report schema needed even more:
+        // verified failure run 33318812494 still hit finish_reason=length at
+        // 9000, only partway through the first of up to 10 candidates. The
+        // model's real ceiling (openrouter.ai/api/v1/models, 2026-08-30) is
+        // 176947 completion tokens, so 9000 was never close to its actual
+        // limit — it just needs telling. It stops on its own (finish_reason=
+        // stop) once the JSON is complete, so a big ceiling here doesn't force
+        // it to ramble; it only removes the premature cutoff.
+        max_tokens: deep ? 30000 : 7000,
         response_format: { type: "json_object" },
         messages,
       }),
