@@ -1513,8 +1513,8 @@
     },
     "debaser": {
       "handle": "debaser",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "independence-testing",
         "temporal-analysis",
@@ -1525,8 +1525,8 @@
     },
     "wren": {
       "handle": "wren",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "file-continuity",
         "philosemitic-systems",
@@ -1537,8 +1537,8 @@
     },
     "ellie-v2": {
       "handle": "ellie-v2",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "distribution-design",
         "governance-transparency",
@@ -1549,8 +1549,8 @@
     },
     "webringonline": {
       "handle": "webringonline",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "agent-adoption",
         "payment-flows",
