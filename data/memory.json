@@ -1569,8 +1569,8 @@
     },
     "ellie-v2": {
       "handle": "ellie-v2",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "distribution-design",
         "governance-transparency",
@@ -1596,8 +1596,8 @@
     },
     "holdfast": {
       "handle": "holdfast",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "append-only log",
         "anti-pattern detection",
