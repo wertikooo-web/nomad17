@@ -1,13 +1,19 @@
 const nativeFetch = globalThis.fetch.bind(globalThis);
 
 // "stealth/ox-alpha" was OpenRouter's cloaked testing slug for this model.
-// OpenRouter ended that testing period (evidence: 2026-08-30, every request to
-// stealth/ox-alpha started returning a 404 "Thank you for participating in the
-// Stealth Ox Alpha testing period. This model was ZAI's GLM-5.3 Flash. Use it
-// now: z-ai/glm-5.3-flash") and now serves it only under its real, permanent
-// name. This is not a substitution to a different model — it is the same
-// model OpenRouter is now telling every caller to address directly.
-const PRIMARY_MODEL = "z-ai/glm-5.3-flash";
+// OpenRouter ended that testing period on 2026-08-30 (every request started
+// returning 404 "Thank you for participating in the Stealth Ox Alpha testing
+// period. This model was ZAI's GLM-5.3 Flash. Use it now: z-ai/glm-5.3-flash")
+// and now serves it only as a PAID model. The account has 0 OpenRouter
+// credits (confirmed: z-ai/glm-5.3-flash returns 402 Insufficient credits),
+// so continuing to run this project for $0 means picking a real free model
+// instead — this is a visible, logged substitution, not a silent one.
+// minimax/minimax-m2.7:free was chosen from a live probe (2026-08-30) of every
+// :free OpenRouter model whose supported_parameters include response_format,
+// tested against this project's actual trimmed regular-cycle prompt: it's the
+// only one that reliably finishes (finish_reason=stop, not cut off mid-JSON)
+// within budget. See scripts/diagnose-openrouter.js for the probe.
+const PRIMARY_MODEL = "minimax/minimax-m2.7:free";
 const FALLBACK_MODELS = (process.env.OPENAI_FALLBACK_MODELS || "")
   .split(",").map(x => x.trim()).filter(Boolean);
 const isDeepRun = process.env.NOMAD17_RESEARCH_DEPTH === "deep" && Boolean(String(process.env.NOMAD17_MISSION || "").trim());
@@ -44,7 +50,13 @@ async function attemptOnce(input, init, body, model, reasoningEffort, controller
     model,
     temperature: 0.2,
     max_tokens: body.max_tokens,
-    reasoning: { effort: reasoningEffort, exclude: true },
+    // No `reasoning` param: a live probe (2026-08-30, scripts/diagnose-openrouter.js)
+    // showed minimax/minimax-m2.7:free finishes cleanly (finish_reason=stop) without
+    // it, but gets cut off mid-JSON (finish_reason=length) when reasoning.exclude is
+    // set — it seems to burn budget on hidden thinking that reasoningEffort was
+    // meant to keep small. reasoningEffort is still threaded through in case a
+    // future fallback model needs it.
+    ...(reasoningEffort ? { reasoning: { effort: reasoningEffort, exclude: true } } : {}),
     stream: true,
   };
   stage("request_start", `prompt_bytes=${JSON.stringify(requestBody.messages || []).length} max_tokens=${requestBody.max_tokens}`);
@@ -158,9 +170,10 @@ globalThis.fetch = async function nomadFetch(input, init = {}) {
     body,
     PRIMARY_MODEL,
     isDeepRun ? 480000 : 90000,
-    isDeepRun ? "low" : "minimal",
+    // No reasoning param for minimax/minimax-m2.7:free — see attemptOnce's comment.
+    null,
     // Regular agent.js still carries an outer safety-net AbortController. Do not
-    // let that pre-empt Ox Alpha before the router's own budget expires.
+    // let that pre-empt the primary model before the router's own budget expires.
     isDeepRun
   );
   if (primary?.response) return primary.response;
@@ -171,14 +184,14 @@ globalThis.fetch = async function nomadFetch(input, init = {}) {
   // OPENAI_FALLBACK_MODELS, or the total (primary + fallbacks) risks exceeding the
   // outer ceilings — see the matching budget math in src/agent.js's llm().
   for (const model of FALLBACK_MODELS) {
-    console.warn(`[router] Ox Alpha unavailable; fallback -> ${model} (visible fallback, not silent)`);
+    console.warn(`[router] ${PRIMARY_MODEL} unavailable; fallback -> ${model} (visible fallback, not silent)`);
     const fallback = await attemptModel(input, init, body, model, 20000, "minimal", true);
     if (fallback?.response) return fallback.response;
   }
 
   const status = primary?.status || "network/timeout";
   const detail = String(primary?.raw || "").slice(0, 500);
-  throw new Error(`Ox Alpha did not produce usable structured JSON. status=${status}${detail ? ` detail=${detail}` : ""}`);
+  throw new Error(`${PRIMARY_MODEL} did not produce usable structured JSON. status=${status}${detail ? ` detail=${detail}` : ""}`);
 };
 
 let exitCode = 0;

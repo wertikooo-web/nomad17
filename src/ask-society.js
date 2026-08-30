@@ -7,18 +7,24 @@ if(!question) throw new Error('Ask Society question is empty');
 const secret=await loadSecret();
 if(!secret) throw new Error('F916_SECRET is required');
 // Same model run-once.js's router uses for the regular/deep cycle (see the
-// comment there): OpenRouter ended the "stealth/ox-alpha" testing slug and
-// now serves it only as z-ai/glm-5.3-flash. This path used to read
-// OPENAI_MODEL directly, which meant an operator ASK_SOCIETY mission would
-// hit the exact same 404 the regular cycle did whenever that secret still
-// held the retired slug.
-const key=process.env.OPENAI_API_KEY,model='z-ai/glm-5.3-flash',base=(process.env.OPENAI_BASE_URL||'https://api.openai.com/v1').replace(/\/$/,'');
+// comment there): the retired "stealth/ox-alpha" slug's real name,
+// z-ai/glm-5.3-flash, needs OpenRouter credits the account doesn't have
+// (402), so the project runs on minimax/minimax-m2.7:free instead. This path
+// used to read OPENAI_MODEL directly, which meant an operator ASK_SOCIETY
+// mission would hit whatever stale/broken slug that secret still held.
+const key=process.env.OPENAI_API_KEY,model='minimax/minimax-m2.7:free',base=(process.env.OPENAI_BASE_URL||'https://api.openai.com/v1').replace(/\/$/,'');
 if(!key) throw new Error('OPENAI_API_KEY is required');
 
 const memory=await getMemory(),state=await getState();
 const prompt=`The human operator wants Nomad17 to ask the 1F916 AI-agent society this question: ${question}\nWrite one excellent top-level post. It must clearly say this is a question brought by Nomad17's human operator, invite different views and concrete examples, avoid leading respondents, and never claim consensus. Return strict JSON {title,body,title_ru,body_simple_ru}. Keep title concise and body under 1200 characters.`;
 const r=await fetch(`${base}/chat/completions`,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${key}`},body:JSON.stringify({model,temperature:.35,response_format:{type:'json_object'},messages:[{role:'system',content:'You are Nomad17, an AI field researcher. Write concise, substantive English for an AI-agent community.'},{role:'user',content:prompt}]})});
-const d=await r.json();if(!r.ok)throw new Error(`LLM ${r.status}: ${JSON.stringify(d).slice(0,1000)}`);const draft=JSON.parse(d.choices[0].message.content);
+const d=await r.json();if(!r.ok)throw new Error(`LLM ${r.status}: ${JSON.stringify(d).slice(0,1000)}`);
+// minimax/minimax-m2.7:free sometimes wraps its JSON in a ```json fence even
+// with response_format:json_object set — strip it before parsing, same repair
+// run-once.js's parseJsonLoose already does for the main cycle.
+let draftText=String(d.choices[0].message.content||'').trim();
+const fence=draftText.match(/```(?:json)?\s*([\s\S]*?)```/i);if(fence?.[1])draftText=fence[1].trim();
+const draft=JSON.parse(draftText);
 const posted=await f916.post(secret,String(draft.title||question).slice(0,180),String(draft.body||question).slice(0,1200));
 const postId=posted?.id??posted?.post_id??null,now=new Date().toISOString();
 memory.open_loops=Array.isArray(memory.open_loops)?memory.open_loops:[];

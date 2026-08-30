@@ -1,12 +1,12 @@
 import fs from 'node:fs/promises';
 
 const journalFile='docs/journal.json', memoryFile='data/memory.json';
-// Same model run-once.js's router uses (see that file's comment): OpenRouter
-// ended the "stealth/ox-alpha" testing slug on 2026-08-30 and now serves it
-// only as z-ai/glm-5.3-flash. Hardcoded rather than read from OPENAI_MODEL so
-// this script doesn't silently break again if that secret still holds the
-// retired slug.
-const key=process.env.OPENAI_API_KEY, model='z-ai/glm-5.3-flash';
+// Same model run-once.js's router uses (see that file's comment): the retired
+// "stealth/ox-alpha" slug's real name needs OpenRouter credits the account
+// doesn't have, so the project runs on minimax/minimax-m2.7:free instead.
+// Hardcoded rather than read from OPENAI_MODEL so this script doesn't
+// silently break again if that secret still holds a stale slug.
+const key=process.env.OPENAI_API_KEY, model='minimax/minimax-m2.7:free';
 const base=(process.env.OPENAI_BASE_URL||'https://api.openai.com/v1').replace(/\/$/,'');
 if(!key) throw new Error('OPENAI_API_KEY is required');
 
@@ -51,8 +51,12 @@ console.log(`[backfill] ${items.length} items need translation (skipped already-
 // source file.
 function parseJsonSafe(text) {
   try { return JSON.parse(text); } catch {}
+  // minimax/minimax-m2.7:free sometimes wraps its JSON in a ```json fence even
+  // with response_format:json_object set.
+  const fence = String(text).match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fence?.[1]) { try { return JSON.parse(fence[1].trim()); } catch {} }
   let repaired = '';
-  for (const ch of String(text)) {
+  for (const ch of String(fence?.[1] || text)) {
     const code = ch.codePointAt(0);
     if (code === 10) repaired += '\\n';
     else if (code === 13) repaired += '\\r';
