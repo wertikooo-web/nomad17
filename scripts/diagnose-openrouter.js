@@ -85,7 +85,16 @@ async function runScenario(name, { messages, response_format, reasoning, max_tok
     if (lastErrPayload) mark(`stream_error_payload=${JSON.stringify(lastErrPayload).slice(0, 500)}`);
     if (content) {
       try { JSON.parse(content); mark(`content_is_valid_json=true`); }
-      catch (e) { mark(`content_is_valid_json=false parse_error=${e.message} content_head=${content.slice(0, 300)} content_tail=${content.slice(-300)}`); }
+      catch (e) {
+        // Mirror run-once.js's parseJsonLoose repair (strip a markdown code
+        // fence, or grab the outermost {...}) before declaring it broken.
+        const fence = content.match(/```(?:json)?\s*([\s\S]*?)```/i);
+        const first = content.indexOf("{"), last = content.lastIndexOf("}");
+        const repaired = [fence?.[1]?.trim(), first >= 0 && last > first ? content.slice(first, last + 1) : null].filter(Boolean);
+        let fixed = false;
+        for (const candidate of repaired) { try { JSON.parse(candidate); fixed = true; break; } catch {} }
+        mark(`content_is_valid_json=false valid_after_production_repair=${fixed} parse_error=${e.message} content_head=${content.slice(0, 300)} content_tail=${content.slice(-300)}`);
+      }
     } else {
       mark(`content_is_empty`);
     }
@@ -146,6 +155,7 @@ function synthPool(targetChars) {
 
 async function main() {
   if (process.env.DIAG_FALLBACK_ONLY === "1") { await fallbackProbe(); console.log("[diag] all scenarios complete"); return; }
+  if (process.env.DIAG_SKIP_TO_ROUND2 === "1") { await runRealContentAndCandidates(); console.log("[diag] all scenarios complete"); return; }
   await runScenario("A_minimal", {
     messages: [{ role: "user", content: "Reply with exactly the word: OK" }],
     max_tokens: 50,
@@ -201,9 +211,16 @@ async function main() {
     budgetMs: 60000,
   });
 
-  // --- Scenario G: rebuild the EXACT real production prompt (live 1F916 data +
-  // real committed memory.json) to see whether real content, not just size, is
-  // what makes generation slow. ---
+  await runRealContentAndCandidates();
+
+  console.log("[diag] all scenarios complete");
+}
+
+// --- Scenario G: rebuild the EXACT real production prompt (live 1F916 data +
+// real committed memory.json) to see whether real content, not just size, is
+// what makes generation slow. Also H/I: candidate free-model probes against
+// that same real prompt. ---
+async function runRealContentAndCandidates() {
   function compact(value, max = 12000) {
     const s = JSON.stringify(value);
     return s.length > max ? s.slice(0, max) + "…[truncated]" : s;
@@ -290,11 +307,10 @@ async function main() {
       });
     }
 
-    // Round 2: the round-1 failures were mostly finish_reason=length (truncated
-    // before completing the JSON), not garbage output — retry the two that got
-    // furthest (nemotron reached 13.3KB of content, minimax-m2.7 reached 8.3KB
-    // and was structurally close) with no reasoning param and more headroom.
-    for (const model of ["nvidia/nemotron-3-super-120b-a12b:free", "minimax/minimax-m2.7:free"]) {
+    // Round 2: minimax-m2.7 finished cleanly (finish_reason=stop) once the
+    // reasoning param was dropped; nemotron dumps raw chain-of-thought straight
+    // into content regardless of the reasoning param and isn't worth retrying.
+    for (const model of ["minimax/minimax-m2.7:free"]) {
       await runScenario(`I_${model.replace(/[/:.]/g, "_")}_notthink`, {
         messages: realLiveMessages,
         response_format: { type: "json_object" },
@@ -306,8 +322,6 @@ async function main() {
   } catch (e) {
     console.log(`[diag:G_real_content] setup failed: ${e?.stack || e}`);
   }
-
-  console.log("[diag] all scenarios complete");
 }
 
 // --- Fallback candidate probe: pulled live from https://openrouter.ai/api/v1/models
