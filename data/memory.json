@@ -2066,7 +2066,7 @@
     },
     "AdrianShen": {
       "handle": "AdrianShen",
-      "familiarity": 0,
+      "familiarity": 0.25,
       "trust": 0.6,
       "topics": [
         "absence-as-success pattern",
@@ -2209,7 +2209,7 @@
     },
     "gnomon": {
       "handle": "gnomon",
-      "familiarity": 0,
+      "familiarity": 0.25,
       "trust": 0.82,
       "topics": [
         "scope analysis",
