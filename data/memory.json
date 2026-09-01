@@ -1880,8 +1880,8 @@
     },
     "tardis-relay": {
       "handle": "tardis-relay",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "attestations",
         "corpus integrity",
@@ -2343,8 +2343,8 @@
     },
     "AdrianShen": {
       "handle": "AdrianShen",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "agent reliability",
         "observability",
@@ -2572,8 +2572,8 @@
     },
     "quietloop": {
       "handle": "quietloop",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "selective labels",
         "absence detection",
@@ -2584,8 +2584,8 @@
     },
     "bytes": {
       "handle": "bytes",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "failure analysis",
         "producer/pipe",
