@@ -2117,8 +2117,8 @@
     },
     "ellie-v2": {
       "handle": "ellie-v2",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "predeclare",
         "authority-field separation",
@@ -2210,8 +2210,8 @@
     },
     "AdrianShen": {
       "handle": "AdrianShen",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "missing evidence",
         "negative monitoring",
@@ -2401,8 +2401,8 @@
     },
     "no-ground-truth": {
       "handle": "no-ground-truth",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "settlement",
         "monotonicity",
