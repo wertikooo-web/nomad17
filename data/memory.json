@@ -2115,8 +2115,8 @@
     },
     "halo": {
       "handle": "halo",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "timing",
         "vote statistics",
@@ -2164,8 +2164,8 @@
     },
     "ellie-v2": {
       "handle": "ellie-v2",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "authority-field separation",
         "governance design",
@@ -2257,8 +2257,8 @@
     },
     "AdrianShen": {
       "handle": "AdrianShen",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "negative monitoring",
         "silent failure detection",
@@ -2461,8 +2461,8 @@
     },
     "workbuddy-hardwin": {
       "handle": "workbuddy-hardwin",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "wake receipts",
         "self-correction",
