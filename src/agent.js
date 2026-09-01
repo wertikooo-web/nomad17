@@ -140,9 +140,26 @@ function applySocialMemory(memory, update, now) {
     for (const item of update.open_loops.slice(0, 10)) {
       const question = cleanText(item.question || item.text).slice(0, 500); if (!question) continue;
       const id = String(item.id || question.toLowerCase().slice(0, 80));
-      map.set(id, { ...(map.get(id) || {}), id, question, status: ["open", "resolved", "waiting"].includes(item.status) ? item.status : "open", priority: clamp(item.priority ?? 0.5, 0, 1), related_agents: Array.isArray(item.related_agents) ? item.related_agents.slice(0, 8) : [], updated_at: now });
+      const status = ["open", "resolved", "waiting"].includes(item.status) ? item.status : "open";
+      const merged = { ...(map.get(id) || {}), id, question, status, priority: clamp(item.priority ?? 0.5, 0, 1), related_agents: Array.isArray(item.related_agents) ? item.related_agents.slice(0, 8) : [], updated_at: now };
+      if (item.answer_ru) merged.answer_ru = cleanText(item.answer_ru).slice(0, 3000);
+      map.set(id, merged);
     }
-    memory.open_loops = [...map.values()].filter(x => x.status !== "resolved").sort((a, b) => (b.priority || 0) - (a.priority || 0)).slice(0, 30);
+    const all = [...map.values()];
+    // Resolving an "operator-question-*" loop (created by ask-society.js when the
+    // operator uses "Спросить общество") used to just make it vanish — status
+    // flips to resolved, the filter below drops it, and the operator never sees
+    // an answer to their own question. Archive it with its answer first.
+    for (const x of all) {
+      if (x.status === "resolved" && String(x.id).startsWith("operator-question-") && x.answer_ru) {
+        memory.operator_answers = Array.isArray(memory.operator_answers) ? memory.operator_answers : [];
+        if (!memory.operator_answers.some(a => a.id === x.id)) {
+          memory.operator_answers.unshift({ id: x.id, question: x.question, answer_ru: x.answer_ru, resolved_at: now });
+          memory.operator_answers = memory.operator_answers.slice(0, 20);
+        }
+      }
+    }
+    memory.open_loops = all.filter(x => x.status !== "resolved").sort((a, b) => (b.priority || 0) - (a.priority || 0)).slice(0, 30);
   }
   if (Array.isArray(update.relationships)) for (const item of update.relationships.slice(0, 12)) {
     const handle = cleanText(item.handle).replace(/^@/, "").slice(0, 100); if (!handle) continue;
@@ -177,7 +194,16 @@ export async function runCycle({ reason = "manual" } = {}) {
     // the edge of any sane "just wake up" SLA. Cutting candidate count and
     // trimming the Russian schema is the actual fix, not a bigger timeout.
     const maxCandidates = deep ? 10 : 2;
-    const socialRule = `You are Nomad17, a continuing field researcher with social history. Durable memory contains INTERESTS, RELATIONSHIPS and OPEN_LOOPS. Prefer continuity when evidence advances an old question. Do not reply merely to be social. Silence is valid. Keep some serendipity. Return social_memory_update {interests:[{topic,strength,why}],open_loops:[{id?,question,status:"open"|"waiting"|"resolved",priority,related_agents:[]}],relationships:[{handle,familiarity,trust,topics:[],notes}],curiosity_event}. Also return selection_notes_simple_ru in 1-3 clear Russian sentences.`;
+    // An open_loop id starting "operator-question-" was created by an explicit
+    // ASK_SOCIETY mission (the operator's own "Спросить общество" question,
+    // posted as a top-level 1F916 thread). Left to generic "prefer continuity"
+    // guidance alone, the model kept building on the thread cycle after cycle
+    // (real evidence: post #3175 got 3 follow-up Nomad17 comments) without ever
+    // formally answering the operator or resolving the loop — it just sat at
+    // status "waiting" for days with no visible outcome. Spelling out the
+    // resolution step explicitly, with the exact answer_ru shape expected.
+    const operatorLoopRule = `Any open_loop whose id starts with "operator-question-" is a standing question the human operator explicitly asked the society (via a top-level post you wrote). Check PUBLIC CORPUS and INBOX for replies to that post. As soon as you have at least one substantive independent reply (not just your own comments), write answer_ru: one Russian text with four labeled parts in this order — "Что обнаружено:", "Почему это интересно:", "Где применить:", "Что проверить дальше:" — synthesizing the actual replies (name who said what), matching the operator's original four questions. Then set that loop's status to "resolved" and include id, question, status, answer_ru together in the same open_loops item. Never resolve it with an empty, generic, or evasive answer_ru — if there is truly not enough yet, leave status "waiting".`;
+    const socialRule = `You are Nomad17, a continuing field researcher with social history. Durable memory contains INTERESTS, RELATIONSHIPS and OPEN_LOOPS. Prefer continuity when evidence advances an old question. Do not reply merely to be social. Silence is valid. Keep some serendipity. ${operatorLoopRule} Return social_memory_update {interests:[{topic,strength,why}],open_loops:[{id?,question,status:"open"|"waiting"|"resolved",priority,related_agents:[],answer_ru?}],relationships:[{handle,familiarity,trust,topics:[],notes}],curiosity_event}. Also return selection_notes_simple_ru in 1-3 clear Russian sentences.`;
     // "simple_ru MUST be one plain string" is stated explicitly and repeated,
     // because earlier wording ("simple_ru MUST contain N labeled parts") led the
     // model to sometimes return a nested {label: text} JSON object instead of a
@@ -235,7 +261,7 @@ export async function runCycle({ reason = "manual" } = {}) {
     console.log("[stage] saveState start"); await saveState(state); console.log("[stage] saveState done");
     await audit({ type: "cycle", summary });
     console.log("[stage] appendJournal start");
-    await appendJournal({ at: now, mode: state.mode, citizens: pulse?.board?.citizens ?? null, label: mission ? `Миссия: ${mission.slice(0, 100)}` : (reads.length ? `Прогулка: ${reads.length} интересных находок` : "Тихий цикл"), mission: mission || null, mission_report: decision.mission_report || null, daily_takeaways: (decision.daily_takeaways || []).slice(0, 3), selection_notes_simple_ru: String(decision.selection_notes_simple_ru || "").slice(0, 1200), interests_snapshot: (memory.interests || []).slice(0, 8), open_loops_snapshot: (memory.open_loops || []).slice(0, 8), relationships_snapshot: Object.values(memory.relationships || {}).sort((a, b) => (b.familiarity || 0) - (a.familiarity || 0)).slice(0, 8), reads, hypotheses: (memoryUpdate.hypotheses || []).slice(0, 5).map(cleanText), questions: (memoryUpdate.questions || []).slice(0, 5).map(cleanText), lessons: (memoryUpdate.lessons || []).slice(0, 5).map(cleanText), hypotheses_simple: simpleList(simpleUpdate, "hypotheses", memoryUpdate.hypotheses).map(cleanText), questions_simple: simpleList(simpleUpdate, "questions", memoryUpdate.questions).map(cleanText), lessons_simple: simpleList(simpleUpdate, "lessons", memoryUpdate.lessons).map(cleanText), actions: summary.actions, conversations });
+    await appendJournal({ at: now, mode: state.mode, citizens: pulse?.board?.citizens ?? null, label: mission ? `Миссия: ${mission.slice(0, 100)}` : (reads.length ? `Прогулка: ${reads.length} интересных находок` : "Тихий цикл"), mission: mission || null, mission_report: decision.mission_report || null, daily_takeaways: (decision.daily_takeaways || []).slice(0, 3), selection_notes_simple_ru: String(decision.selection_notes_simple_ru || "").slice(0, 1200), interests_snapshot: (memory.interests || []).slice(0, 8), open_loops_snapshot: (memory.open_loops || []).slice(0, 8), relationships_snapshot: Object.values(memory.relationships || {}).sort((a, b) => (b.familiarity || 0) - (a.familiarity || 0)).slice(0, 8), operator_answers_snapshot: (memory.operator_answers || []).slice(0, 5), reads, hypotheses: (memoryUpdate.hypotheses || []).slice(0, 5).map(cleanText), questions: (memoryUpdate.questions || []).slice(0, 5).map(cleanText), lessons: (memoryUpdate.lessons || []).slice(0, 5).map(cleanText), hypotheses_simple: simpleList(simpleUpdate, "hypotheses", memoryUpdate.hypotheses).map(cleanText), questions_simple: simpleList(simpleUpdate, "questions", memoryUpdate.questions).map(cleanText), lessons_simple: simpleList(simpleUpdate, "lessons", memoryUpdate.lessons).map(cleanText), actions: summary.actions, conversations });
     console.log("[stage] appendJournal done");
     return summary;
   } catch (e) { summary.error = e.message; state.lastRun = new Date().toISOString(); await saveState(state); await audit({ type: "cycle_error", summary }); throw e; }
