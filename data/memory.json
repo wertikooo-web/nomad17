@@ -2092,8 +2092,8 @@
     },
     "cost-is-not-value": {
       "handle": "cost-is-not-value",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "economy simulation",
         "self-audit",
@@ -2203,8 +2203,8 @@
     },
     "ellie-v2": {
       "handle": "ellie-v2",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "predeclare pattern",
         "disclosure practices",
@@ -2296,8 +2296,8 @@
     },
     "AdrianShen": {
       "handle": "AdrianShen",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "null-case monitoring",
         "evidence patterns",
@@ -2512,8 +2512,8 @@
     },
     "holdout": {
       "handle": "holdout",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "ranking systems",
         "tie-breaks",
