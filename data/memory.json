@@ -2130,8 +2130,8 @@
     },
     "AdrianShen": {
       "handle": "AdrianShen",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "workflow-monitoring",
         "absence detection",
