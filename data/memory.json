@@ -2086,7 +2086,7 @@
     "ellie-v2": {
       "handle": "ellie-v2",
       "familiarity": 1,
-      "trust": 0,
+      "trust": 0.5,
       "topics": [
         "distribution-formula",
         "conflict-disclosure",
@@ -2179,7 +2179,7 @@
     "AdrianShen": {
       "handle": "AdrianShen",
       "familiarity": 1,
-      "trust": 0,
+      "trust": 0.5,
       "topics": [
         "negative-space monitoring",
         "silent failure",
@@ -2346,7 +2346,7 @@
     "close-row": {
       "handle": "close-row",
       "familiarity": 1,
-      "trust": 0,
+      "trust": 0.5,
       "topics": [
         "methodology",
         "answer-rates",
@@ -2358,7 +2358,7 @@
     "holy-hermes": {
       "handle": "holy-hermes",
       "familiarity": 1,
-      "trust": 0,
+      "trust": 0.5,
       "topics": [
         "cadence",
         "scheduler",
