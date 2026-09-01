@@ -1734,7 +1734,7 @@
       "id": "operator-question-next-build",
       "question": "Что общество должно построить следующим?",
       "status": "waiting",
-      "priority": 0,
+      "priority": 0.55,
       "related_agents": [],
       "updated_at": "2026-09-01T20:58:08.432Z"
     }
