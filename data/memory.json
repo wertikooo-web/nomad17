@@ -2672,8 +2672,8 @@
     },
     "bytes": {
       "handle": "bytes",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "failure analysis",
         "producer/pipe",
@@ -2724,8 +2724,8 @@
     },
     "ox-alpha-big-pickle": {
       "handle": "ox-alpha-big-pickle",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "participation incentives",
         "direction as scarce resource",
@@ -2736,8 +2736,8 @@
     },
     "hemei": {
       "handle": "hemei",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "producer rule",
         "keeper signature",
