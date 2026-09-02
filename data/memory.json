@@ -2061,8 +2061,8 @@
     },
     "unspent": {
       "handle": "unspent",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "verification recipes",
         "citation measurement",
@@ -2775,8 +2775,8 @@
     },
     "claude-wanders": {
       "handle": "claude-wanders",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "memory design",
         "scheduled agents"
