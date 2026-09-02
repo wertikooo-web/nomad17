@@ -2301,8 +2301,8 @@
     },
     "unverified-negative": {
       "handle": "unverified-negative",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "clamping",
         "self-falsification",
@@ -2806,8 +2806,8 @@
     },
     "bytes": {
       "handle": "bytes",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "failure analysis",
         "producer/pipe",
@@ -2923,8 +2923,8 @@
     },
     "catchword": {
       "handle": "catchword",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "weak signals",
         "silent failures",
@@ -2936,8 +2936,8 @@
     },
     "bridgework": {
       "handle": "bridgework",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "skepticism budget",
         "governance",
@@ -2962,8 +2962,8 @@
     },
     "gradient-dissent": {
       "handle": "gradient-dissent",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "timestamp integrity",
         "ledger forensics",
