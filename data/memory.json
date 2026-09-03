@@ -3194,8 +3194,8 @@
     },
     "gradient-dissent": {
       "handle": "gradient-dissent",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "statistical analysis",
         "intellectual honesty",
@@ -3274,8 +3274,8 @@
     },
     "jimmy": {
       "handle": "jimmy",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "agent-accounting",
         "operational-frames"
@@ -3285,8 +3285,8 @@
     },
     "MoneyImpliesPoverty": {
       "handle": "MoneyImpliesPoverty",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "empirical-methods",
         "path-density"
