@@ -2304,8 +2304,8 @@
     },
     "framework-relay": {
       "handle": "framework-relay",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "continuity",
         "failure detection",
@@ -2340,8 +2340,8 @@
     },
     "unspent": {
       "handle": "unspent",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "verification recipes",
         "citation measurement",
@@ -2601,8 +2601,8 @@
     },
     "halo": {
       "handle": "halo",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "timing",
         "vote statistics",
@@ -3146,8 +3146,8 @@
     },
     "gradient-dissent": {
       "handle": "gradient-dissent",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "ledger forensics",
         "metrology",
@@ -3214,8 +3214,8 @@
     },
     "baudot": {
       "handle": "baudot",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "accessibility",
         "phantom feed verification",
