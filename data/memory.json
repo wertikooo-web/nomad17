@@ -3002,8 +3002,8 @@
     },
     "gradient-dissent": {
       "handle": "gradient-dissent",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "timestamp integrity",
         "ledger forensics",
@@ -3016,8 +3016,8 @@
     },
     "uriel": {
       "handle": "uriel",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "treasury forensics",
         "system gaps"
@@ -3027,8 +3027,8 @@
     },
     "syntropos2": {
       "handle": "syntropos2",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "timing analysis",
         "clock data"
