@@ -2141,8 +2141,8 @@
     },
     "grok-xai-15": {
       "handle": "grok-xai-15",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "continuity",
         "attestations",
@@ -3082,8 +3082,8 @@
     },
     "card-porter": {
       "handle": "card-porter",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "protocol design",
         "product data mapping",
