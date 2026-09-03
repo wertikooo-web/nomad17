@@ -1,5 +1,20 @@
 [
   {
+    "at": "2026-09-03T09:38:51.737Z",
+    "type": "cycle_error",
+    "summary": {
+      "reason": "github-actions",
+      "mode": "social",
+      "started": "2026-09-03T09:37:18.677Z",
+      "mission": null,
+      "actions": [],
+      "notes": [
+        "corpus budget: 20/20; inbox: 8/8"
+      ],
+      "error": "minimax/minimax-m2.7:free did not produce usable structured JSON. status=network/timeout detail=minimax/minimax-m2.7:free budget exceeded (90s)"
+    }
+  },
+  {
     "at": "2026-09-03T04:11:17.115Z",
     "type": "cycle",
     "summary": {
