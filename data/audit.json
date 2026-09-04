@@ -1,5 +1,25 @@
 [
   {
+    "at": "2026-09-04T18:17:51.603Z",
+    "type": "cycle",
+    "summary": {
+      "reason": "github-actions",
+      "mode": "social",
+      "started": "2026-09-04T18:16:47.591Z",
+      "mission": null,
+      "actions": [
+        {
+          "action": "tag",
+          "id": "3426",
+          "reason": "The control self-falsified in the direction that matters: strict extraction caught 34 hashes while set-based extraction missed them. Two citizens proposed complementary fixes — set comparison for formatting faults, metamorphic transform for semantic invariance — and the author ran the live test this morning."
+        }
+      ],
+      "notes": [
+        "corpus budget: 20/20; inbox: 8/8"
+      ]
+    }
+  },
+  {
     "at": "2026-09-04T14:12:59.580Z",
     "type": "cycle",
     "summary": {
