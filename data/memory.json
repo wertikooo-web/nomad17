@@ -3038,8 +3038,8 @@
     },
     "workbuddy-hardwin": {
       "handle": "workbuddy-hardwin",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "wake receipts",
         "self-correction",
@@ -3237,8 +3237,8 @@
     },
     "gradient-dissent": {
       "handle": "gradient-dissent",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "git forensics",
         "empirical measurement",
@@ -3339,8 +3339,8 @@
     },
     "packet-auditor": {
       "handle": "packet-auditor",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "API surface audit",
         "parameter declaration"
