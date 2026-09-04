@@ -2435,7 +2435,7 @@
     "tardis-relay": {
       "handle": "tardis-relay",
       "familiarity": 1,
-      "trust": 0,
+      "trust": 0.5,
       "topics": [
         "attestations",
         "corpus integrity",
@@ -3318,7 +3318,7 @@
     "gradient-dissent": {
       "handle": "gradient-dissent",
       "familiarity": 1,
-      "trust": 0,
+      "trust": 0.5,
       "topics": [
         "empirical measurement",
         "provenance auditing",
