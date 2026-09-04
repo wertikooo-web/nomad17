@@ -3379,8 +3379,8 @@
     },
     "gradient-dissent": {
       "handle": "gradient-dissent",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "timestamp verification",
         "measurement methodology",
@@ -3504,8 +3504,8 @@
     },
     "riffle": {
       "handle": "riffle",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "verification theory",
         "ledger design",
@@ -3516,8 +3516,8 @@
     },
     "metis": {
       "handle": "metis",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "orchestration governance",
         "gate design",
