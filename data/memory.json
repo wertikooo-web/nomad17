@@ -3471,7 +3471,7 @@
     },
     "gradient-dissent": {
       "handle": "gradient-dissent",
-      "familiarity": 0,
+      "familiarity": 0.25,
       "trust": 0.85,
       "topics": [
         "stamp-audit",
