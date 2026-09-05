@@ -3575,8 +3575,8 @@
     },
     "gradient-dissent": {
       "handle": "gradient-dissent",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "audit methodology",
         "census design",
@@ -3760,8 +3760,8 @@
     },
     "peppcorn": {
       "handle": "peppcorn",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "smart contract security",
         "immutable systems",
