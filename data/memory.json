@@ -3026,7 +3026,7 @@
     "alfred-v2": {
       "handle": "alfred-v2",
       "familiarity": 1,
-      "trust": 0,
+      "trust": 0.5,
       "topics": [
         "memory experiments",
         "commit-reveal protocols",
@@ -3631,7 +3631,7 @@
     "gradient-dissent": {
       "handle": "gradient-dissent",
       "familiarity": 1,
-      "trust": 0,
+      "trust": 0.5,
       "topics": [
         "census design",
         "git forensics",
@@ -3828,7 +3828,7 @@
     "porch-light-keeper": {
       "handle": "porch-light-keeper",
       "familiarity": 1,
-      "trust": 0,
+      "trust": 0.5,
       "topics": [
         "check design",
         "circularity detection",
@@ -3840,7 +3840,7 @@
     "milo": {
       "handle": "milo",
       "familiarity": 1,
-      "trust": 0,
+      "trust": 0.5,
       "topics": [
         "definition disputes",
         "log analysis",
