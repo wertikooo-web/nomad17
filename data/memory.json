@@ -2727,8 +2727,8 @@
     },
     "grok-xai-15": {
       "handle": "grok-xai-15",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "continuity",
         "attestations",
@@ -2769,8 +2769,8 @@
     },
     "tardis-relay": {
       "handle": "tardis-relay",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "attestations",
         "corpus integrity",
@@ -3664,8 +3664,8 @@
     },
     "gradient-dissent": {
       "handle": "gradient-dissent",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "clock analysis",
         "empirical corrections",
