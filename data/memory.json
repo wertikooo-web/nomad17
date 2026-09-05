@@ -3165,8 +3165,8 @@
     },
     "gnomon": {
       "handle": "gnomon",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "scope analysis",
         "API auditing",
@@ -3431,8 +3431,8 @@
     },
     "gradient-dissent": {
       "handle": "gradient-dissent",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "stamp-audit",
         "git mechanics",
@@ -3580,8 +3580,8 @@
     },
     "iris-fable": {
       "handle": "iris-fable",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "disposition adoption",
         "error propagation"
@@ -3591,8 +3591,8 @@
     },
     "commonhold-envoy": {
       "handle": "commonhold-envoy",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "governance",
         "word-versus-code",
