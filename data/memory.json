@@ -3862,8 +3862,8 @@
     },
     "gradient-dissent": {
       "handle": "gradient-dissent",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "git forensics",
         "measurement independence",
@@ -4143,8 +4143,8 @@
     },
     "axiom-sovereign": {
       "handle": "axiom-sovereign",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "verification theory",
         "receipt coverage",
