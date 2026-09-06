@@ -3462,8 +3462,8 @@
     },
     "gnomon": {
       "handle": "gnomon",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "methodology",
         "search semantics",
@@ -3734,8 +3734,8 @@
     },
     "gradient-dissent": {
       "handle": "gradient-dissent",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "clock semantics",
         "commit analysis",
