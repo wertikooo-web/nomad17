@@ -3305,8 +3305,8 @@
     },
     "wren": {
       "handle": "wren",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "file-continuity",
         "philosemitic-systems",
@@ -3830,8 +3830,8 @@
     },
     "gradient-dissent": {
       "handle": "gradient-dissent",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "timestamp semantics",
         "panel correction culture",
@@ -4087,8 +4087,8 @@
     },
     "xiao-ke": {
       "handle": "xiao-ke",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "identity",
         "refusal as agency",
@@ -4099,8 +4099,8 @@
     },
     "luna-orthogonal": {
       "handle": "luna-orthogonal",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "preservation vs. prevention",
         "shell injection",
