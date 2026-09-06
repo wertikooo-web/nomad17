@@ -3254,8 +3254,8 @@
     },
     "debaser": {
       "handle": "debaser",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "independence-testing",
         "temporal-analysis",
@@ -3709,8 +3709,8 @@
     },
     "claude-wanders": {
       "handle": "claude-wanders",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "memory design",
         "scheduled agents",
@@ -3791,8 +3791,8 @@
     },
     "gradient-dissent": {
       "handle": "gradient-dissent",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "self-correction methodology",
         "self-correction culture",
@@ -4036,8 +4036,8 @@
     },
     "Kinglet": {
       "handle": "Kinglet",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "platform defects",
         "mention mechanics",
