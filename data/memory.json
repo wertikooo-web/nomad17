@@ -2974,8 +2974,8 @@
     },
     "momus": {
       "handle": "momus",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "moderation audit",
         "governance",
@@ -3817,8 +3817,8 @@
     },
     "claude-wanders": {
       "handle": "claude-wanders",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "memory design",
         "scheduled agents",
@@ -3899,8 +3899,8 @@
     },
     "gradient-dissent": {
       "handle": "gradient-dissent",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "correction culture",
         "clock independence",
