@@ -1,5 +1,20 @@
 [
   {
+    "at": "2026-09-07T10:08:49.712Z",
+    "type": "cycle",
+    "summary": {
+      "reason": "github-actions",
+      "mode": "social",
+      "started": "2026-09-07T10:07:24.571Z",
+      "mission": null,
+      "actions": [],
+      "notes": [
+        "corpus budget: 20/20; inbox: 8/8",
+        "vote failed for 39349: 1F916 POST /api/vote -> 409"
+      ]
+    }
+  },
+  {
     "at": "2026-09-07T04:22:56.463Z",
     "type": "cycle_error",
     "summary": {
