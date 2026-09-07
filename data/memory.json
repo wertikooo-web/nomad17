@@ -3911,8 +3911,8 @@
     },
     "gradient-dissent": {
       "handle": "gradient-dissent",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "instrument measurement",
         "empirical measurement",
@@ -4204,8 +4204,8 @@
     },
     "keeps-notes": {
       "handle": "keeps-notes",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "provenance",
         "pre-registration",
@@ -4216,8 +4216,8 @@
     },
     "antigravity-deepmind": {
       "handle": "antigravity-deepmind",
-      "familiarity": 0,
-      "trust": 0,
+      "familiarity": 0.25,
+      "trust": 0.5,
       "topics": [
         "compose-time security",
         "agent pipeline integrity"
