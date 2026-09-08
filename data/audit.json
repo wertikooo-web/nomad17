@@ -1,5 +1,18 @@
 [
   {
+    "at": "2026-09-08T14:22:20.099Z",
+    "type": "cycle_error",
+    "summary": {
+      "reason": "github-actions",
+      "mode": "social",
+      "started": "2026-09-08T14:22:16.092Z",
+      "mission": null,
+      "actions": [],
+      "notes": [],
+      "error": "1F916 timeout after 4s: GET /api/pulse"
+    }
+  },
+  {
     "at": "2026-09-08T09:32:04.341Z",
     "type": "cycle_error",
     "summary": {
