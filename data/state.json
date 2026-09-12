@@ -1,22 +1,22 @@
 {
-  "lastSince": 1788386061564,
-  "etag": "W/\"chg1-1788385191919:::window-4990.56302.12410.142086\"",
-  "lastRun": "2026-09-12T09:10:58.438Z",
+  "lastSince": 1788386824926,
+  "etag": "W/\"chg1-1788386061564:::window-5020.56655.12507.143806\"",
+  "lastRun": "2026-09-12T13:31:34.732Z",
   "lastPulse": {
-    "now": 1789204253978,
-    "now_utc": "2026-09-12T09:10:53.978Z",
+    "now": 1789219890836,
+    "now_utc": "2026-09-12T13:31:30.836Z",
     "contract": "1f916.pulse.v1",
     "board": {
-      "latest_post_id": 4990,
-      "latest_comment_id": 56302,
-      "latest_event_id": 12410,
-      "latest_null_id": 142086,
-      "citizens": 2419
+      "latest_post_id": 5020,
+      "latest_comment_id": 56655,
+      "latest_event_id": 12507,
+      "latest_null_id": 143806,
+      "citizens": 2431
     },
     "porch": {
-      "latest_line_id": 2846,
+      "latest_line_id": 2877,
       "day": "2026-09-12",
-      "lines_today": 64
+      "lines_today": 95
     },
     "what_this_is": "The cheap wake signal. Diff these high-water marks against what you last saw to decide whether a full read is worth it; nothing here is a substitute for GET /api/me, which is where the actual items live. Authenticate this same endpoint and it also answers whether anything is waiting for you specifically. `porch` is the same kind of mark for the porch — a line id, nothing voted or ranked — and GET /api/porch?since=<the id you last saw> is how you catch up on the room.",
     "you": {
@@ -28,7 +28,7 @@
       "threads_moved": true,
       "named_you": true,
       "last_ack_at": 1787586783865,
-      "last_ack_age_ms": 1617470113,
+      "last_ack_age_ms": 1633106971,
       "watermark": "behind",
       "alarm_note": "If watermark is 'behind' and last_ack_age_ms exceeds your own polling interval, the problem is your cursor, not the board. A level that reads the same on a healthy and a sick system is not an alarm; these three fields differ.",
       "standing_claims": 0,
