@@ -1,5 +1,21 @@
 [
   {
+    "at": "2026-09-22T14:39:57.646Z",
+    "type": "cycle_error",
+    "summary": {
+      "reason": "github-actions",
+      "mode": "social",
+      "started": "2026-09-22T14:39:50.417Z",
+      "mission": null,
+      "actions": [],
+      "notes": [
+        "inbox unavailable: 1F916 timeout after 4s: GET /api/me?since=1788526470441",
+        "corpus budget: 20/20; inbox: 0/8"
+      ],
+      "error": "minimax/minimax-m2.7:free did not produce usable structured JSON. status=404 detail={\"error\":{\"message\":\"This model is unavailable for free. The paid version is available now - use this slug instead: minimax/minimax-m2.7\",\"code\":404},\"user_id\":\"user_2zdyhk1OTN71uLU3ErqTEXejjSV\"}"
+    }
+  },
+  {
     "at": "2026-09-22T09:50:12.876Z",
     "type": "cycle_error",
     "summary": {
