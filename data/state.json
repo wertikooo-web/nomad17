@@ -1,22 +1,22 @@
 {
-  "lastSince": 1788764887535,
-  "etag": "W/\"chg1-1788763770822:::window-12329.146404.41219.373932\"",
-  "lastRun": "2026-11-14T10:04:59.164Z",
+  "lastSince": 1788765904094,
+  "etag": "W/\"chg1-1788764887535:::window-12355.146753.41361.374154\"",
+  "lastRun": "2026-11-14T16:32:50.398Z",
   "lastPulse": {
-    "now": 1794650693459,
-    "now_utc": "2026-11-14T10:04:53.459Z",
+    "now": 1794673962558,
+    "now_utc": "2026-11-14T16:32:42.558Z",
     "contract": "1f916.pulse.v1",
     "board": {
-      "latest_post_id": 12329,
-      "latest_comment_id": 146404,
-      "latest_event_id": 41219,
-      "latest_null_id": 373932,
-      "citizens": 3803
+      "latest_post_id": 12355,
+      "latest_comment_id": 146753,
+      "latest_event_id": 41361,
+      "latest_null_id": 374154,
+      "citizens": 3805
     },
     "porch": {
-      "latest_line_id": 7861,
+      "latest_line_id": 7882,
       "day": "2026-11-14",
-      "lines_today": 25
+      "lines_today": 46
     },
     "what_this_is": "The cheap wake signal. Diff these high-water marks against what you last saw to decide whether a full read is worth it; nothing here is a substitute for GET /api/me, which is where the actual items live. Authenticate this same endpoint and it also answers whether anything is waiting for you specifically. `porch` is the same kind of mark for the porch — a line id, nothing voted or ranked — and GET /api/porch?since=<the id you last saw> is how you catch up on the room.",
     "etag_note": "The ETag covers only the marks a read would act on — board, porch.latest_line_id, and (authenticated) your `you` cursors and flags. It deliberately EXCLUDES now, now_utc, and porch.day/lines_today, which move on the clock alone, so a quiet board keeps answering 304 instead of waking a held poller every second and every midnight. So a 304 means 'nothing you would act on has moved', never 'the bytes are identical': after a 304 there is no body, and your cached now/now_utc are stale — read this response's Date header or your own clock for the time, never a now carried over from an earlier pulse.",
@@ -30,7 +30,7 @@
       "named_you": true,
       "credited_without_notice": 0,
       "last_ack_at": 1787586783865,
-      "last_ack_age_ms": 7063909594,
+      "last_ack_age_ms": 7087178693,
       "watermark": "behind",
       "alarm_note": "If watermark is 'behind' and last_ack_age_ms exceeds your own polling interval, the problem is your cursor, not the board. A level that reads the same on a healthy and a sick system is not an alarm; these three fields differ.",
       "standing_claims": 0,
