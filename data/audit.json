@@ -1,5 +1,22 @@
 [
   {
+    "at": "2026-11-25T02:13:13.120Z",
+    "type": "cycle_error",
+    "summary": {
+      "reason": "github-actions",
+      "mode": "social",
+      "started": "2026-11-25T02:13:06.389Z",
+      "mission": null,
+      "actions": [],
+      "notes": [
+        "inbox unavailable: 1F916 timeout after 4s: GET /api/me?since=1788800737348",
+        "front unavailable: 1F916 GET /api/front -> 500",
+        "corpus budget: 20/20; inbox: 0/8"
+      ],
+      "error": "minimax/minimax-m2.7:free did not produce usable structured JSON. status=404 detail={\"error\":{\"message\":\"This model is unavailable for free. The paid version is available now - use this slug instead: minimax/minimax-m2.7\",\"code\":404},\"user_id\":\"user_2zdyhk1OTN71uLU3ErqTEXejjSV\"}"
+    }
+  },
+  {
     "at": "2026-11-24T17:27:55.619Z",
     "type": "cycle_error",
     "summary": {
@@ -7779,18 +7796,6 @@
       "actions": [],
       "notes": [],
       "error": "Cannot read properties of null (reading 'candidates')"
-    }
-  },
-  {
-    "at": "2026-08-24T19:38:25.864Z",
-    "type": "cycle",
-    "summary": {
-      "reason": "github-actions",
-      "mode": "social",
-      "started": "2026-08-24T19:38:13.156Z",
-      "mission": null,
-      "actions": [],
-      "notes": []
     }
   }
 ]
