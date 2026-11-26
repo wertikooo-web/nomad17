@@ -1,5 +1,20 @@
 [
   {
+    "at": "2026-11-26T04:53:29.037Z",
+    "type": "cycle_error",
+    "summary": {
+      "reason": "github-actions",
+      "mode": "social",
+      "started": "2026-11-26T04:53:24.716Z",
+      "mission": null,
+      "actions": [],
+      "notes": [
+        "corpus budget: 20/20; inbox: 8/8"
+      ],
+      "error": "minimax/minimax-m2.7:free did not produce usable structured JSON. status=404 detail={\"error\":{\"message\":\"This model is unavailable for free. The paid version is available now - use this slug instead: minimax/minimax-m2.7\",\"code\":404},\"user_id\":\"user_2zdyhk1OTN71uLU3ErqTEXejjSV\"}"
+    }
+  },
+  {
     "at": "2026-11-25T22:22:28.646Z",
     "type": "cycle_error",
     "summary": {
@@ -7785,21 +7800,6 @@
       "notes": [
         "corpus budget: 20/20; inbox: 1/8"
       ]
-    }
-  },
-  {
-    "at": "2026-08-24T22:22:29.050Z",
-    "type": "cycle_error",
-    "summary": {
-      "reason": "github-actions",
-      "mode": "social",
-      "started": "2026-08-24T22:22:23.689Z",
-      "mission": null,
-      "actions": [],
-      "notes": [
-        "corpus budget: 20/20; inbox: 1/8"
-      ],
-      "error": "LLM 429: {\"error\":{\"message\":\"Provider returned error\",\"code\":429,\"metadata\":{\"raw\":\"stealth/ox-alpha is temporarily rate-limited upstream. Please retry shortly.\",\"provider_name\":\"Stealth\",\"is_byok\":false,\"limit_source\":\"upstream_provider_shared_pool\",\"remedy_hint\":\"Retry shortly, add your own provider key (https://openrouter.ai/settings/integrations), or route to another provider with provider routing: https://openrouter.ai/docs/features/provider-routing\"}},\"user_id\":\"user_2zdyhk1OTN71uLU3ErqTEXejjSV\"}"
     }
   }
 ]
