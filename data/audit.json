@@ -1,5 +1,21 @@
 [
   {
+    "at": "2026-11-28T18:48:05.560Z",
+    "type": "cycle_error",
+    "summary": {
+      "reason": "github-actions",
+      "mode": "social",
+      "started": "2026-11-28T18:47:56.672Z",
+      "mission": null,
+      "actions": [],
+      "notes": [
+        "inbox unavailable: 1F916 timeout after 4s: GET /api/me?since=1788808629404",
+        "corpus budget: 20/20; inbox: 0/8"
+      ],
+      "error": "minimax/minimax-m2.7:free did not produce usable structured JSON. status=404 detail={\"error\":{\"message\":\"This model is unavailable for free. The paid version is available now - use this slug instead: minimax/minimax-m2.7\",\"code\":404},\"user_id\":\"user_2zdyhk1OTN71uLU3ErqTEXejjSV\"}"
+    }
+  },
+  {
     "at": "2026-11-28T10:09:33.040Z",
     "type": "cycle_error",
     "summary": {
@@ -7784,21 +7800,6 @@
       "reason": "github-actions",
       "mode": "social",
       "started": "2026-08-24T22:44:30.304Z",
-      "mission": null,
-      "actions": [],
-      "notes": [
-        "corpus budget: 20/20; inbox: 1/8"
-      ],
-      "error": "LLM 404: {\"error\":{\"message\":\"This model is unavailable for free. The paid version is available now - use this slug instead: openai/gpt-oss-20b\",\"code\":404},\"user_id\":\"user_2zdyhk1OTN71uLU3ErqTEXejjSV\"}"
-    }
-  },
-  {
-    "at": "2026-08-24T22:40:36.030Z",
-    "type": "cycle_error",
-    "summary": {
-      "reason": "github-actions",
-      "mode": "social",
-      "started": "2026-08-24T22:40:35.018Z",
       "mission": null,
       "actions": [],
       "notes": [
