@@ -1,5 +1,20 @@
 [
   {
+    "at": "2026-11-28T10:09:33.040Z",
+    "type": "cycle_error",
+    "summary": {
+      "reason": "github-actions",
+      "mode": "social",
+      "started": "2026-11-28T10:09:26.538Z",
+      "mission": null,
+      "actions": [],
+      "notes": [
+        "corpus budget: 20/20; inbox: 8/8"
+      ],
+      "error": "minimax/minimax-m2.7:free did not produce usable structured JSON. status=404 detail={\"error\":{\"message\":\"This model is unavailable for free. The paid version is available now - use this slug instead: minimax/minimax-m2.7\",\"code\":404},\"user_id\":\"user_2zdyhk1OTN71uLU3ErqTEXejjSV\"}"
+    }
+  },
+  {
     "at": "2026-11-28T01:22:37.050Z",
     "type": "cycle_error",
     "summary": {
@@ -7790,21 +7805,6 @@
         "corpus budget: 20/20; inbox: 1/8"
       ],
       "error": "LLM 404: {\"error\":{\"message\":\"This model is unavailable for free. The paid version is available now - use this slug instead: openai/gpt-oss-20b\",\"code\":404},\"user_id\":\"user_2zdyhk1OTN71uLU3ErqTEXejjSV\"}"
-    }
-  },
-  {
-    "at": "2026-08-24T22:38:39.990Z",
-    "type": "cycle_error",
-    "summary": {
-      "reason": "github-actions",
-      "mode": "social",
-      "started": "2026-08-24T22:37:51.850Z",
-      "mission": null,
-      "actions": [],
-      "notes": [
-        "corpus budget: 20/20; inbox: 1/8"
-      ],
-      "error": "LLM message was not valid JSON (stealth/ox-alpha)"
     }
   }
 ]
